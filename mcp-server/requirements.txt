@@ -1,0 +1,8 @@
+# Core dependencies
+mcp>=1.0.0
+pydantic>=2.0.0
+
+# Optional: Semantic search (improves search quality)
+# Uncomment these for vector-based semantic search
+# sentence-transformers>=2.2.0
+# sqlite-vec>=0.1.0
