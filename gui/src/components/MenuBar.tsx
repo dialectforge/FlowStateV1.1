@@ -40,7 +40,8 @@ export function MenuBar({
 }: MenuBarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { setCurrentView, projects } = useAppStore();
+  const setCurrentView = useAppStore(state => state.setCurrentView);
+  const projects = useAppStore(state => state.projects);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -49,8 +50,8 @@ export function MenuBar({
         setActiveMenu(null);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // Close menu on escape
@@ -64,36 +65,38 @@ export function MenuBar({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const navigateToView = (view: ViewType) => {
-    setCurrentView(view);
-    setActiveMenu(null);
-  };
-
   // Get recent projects (last 5)
   const recentProjects = projects.slice(0, 5);
+
+  const handleAction = (action: () => void) => {
+    setActiveMenu(null);
+    action();
+  };
+
+  const navigateToView = (view: ViewType) => {
+    setActiveMenu(null);
+    setCurrentView(view);
+  };
 
   const menus: MenuSection[] = [
     {
       label: 'File',
       items: [
-        { label: 'New Project', shortcut: '⌘N', icon: Plus, action: () => { onNewProject(); setActiveMenu(null); } },
+        { label: 'New Project', shortcut: '⌘N', icon: Plus, action: () => handleAction(onNewProject) },
         { 
           label: 'Open Recent', 
           icon: Clock,
           submenu: recentProjects.length > 0 
             ? recentProjects.map(p => ({
                 label: p.name,
-                action: () => {
-                  useAppStore.getState().setSelectedProjectId(p.id);
-                  setActiveMenu(null);
-                }
+                action: () => handleAction(() => useAppStore.getState().setSelectedProjectId(p.id))
               }))
             : [{ label: 'No recent projects', disabled: true }]
         },
         { divider: true, label: '' },
         { label: 'Export Project…', shortcut: '⌘E', icon: FileDown, disabled: true },
         { divider: true, label: '' },
-        { label: 'Close Window', shortcut: '⌘W', action: () => { window.close(); } },
+        { label: 'Close Window', shortcut: '⌘W', action: () => handleAction(() => window.close()) },
       ],
     },
     {
@@ -106,7 +109,7 @@ export function MenuBar({
         { label: 'Copy', shortcut: '⌘C', icon: Copy, disabled: true },
         { label: 'Paste', shortcut: '⌘V', icon: ClipboardPaste, disabled: true },
         { divider: true, label: '' },
-        { label: 'Quick Capture', shortcut: '⌘⇧M', icon: Zap, action: () => { onQuickCapture(); setActiveMenu(null); } },
+        { label: 'Quick Capture', shortcut: '⌘⇧M', icon: Zap, action: () => handleAction(onQuickCapture) },
       ],
     },
     {
@@ -132,18 +135,18 @@ export function MenuBar({
         { label: 'Minimize', shortcut: '⌘M', icon: Minus, disabled: true },
         { label: 'Zoom', icon: Maximize2, disabled: true },
         { divider: true, label: '' },
-        { label: 'FlowState', action: () => { window.focus(); setActiveMenu(null); } },
+        { label: 'FlowState', action: () => handleAction(() => window.focus()) },
       ],
     },
     {
       label: 'Help',
       items: [
-        { label: 'FlowState Help', icon: HelpCircle, action: () => { onOpenHelp('guide'); setActiveMenu(null); } },
-        { label: 'Keyboard Shortcuts', shortcut: '⌘?', icon: Keyboard, action: () => { onOpenHelp('shortcuts'); setActiveMenu(null); } },
+        { label: 'FlowState Help', icon: HelpCircle, action: () => handleAction(() => onOpenHelp('guide')) },
+        { label: 'Keyboard Shortcuts', shortcut: '⌘?', icon: Keyboard, action: () => handleAction(() => onOpenHelp('shortcuts')) },
         { divider: true, label: '' },
         { label: 'Check for Updates…', icon: RefreshCw, disabled: true },
         { divider: true, label: '' },
-        { label: 'About FlowState', icon: Info, action: () => { onOpenHelp('about'); setActiveMenu(null); } },
+        { label: 'About FlowState', icon: Info, action: () => handleAction(() => onOpenHelp('about')) },
       ],
     },
   ];
@@ -158,23 +161,22 @@ export function MenuBar({
     if (item.submenu) {
       return (
         <div key={index} className="relative group">
-          <button
+          <div
             className={`w-full flex items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
               item.disabled 
                 ? 'text-gray-500 cursor-not-allowed' 
-                : 'text-gray-200 hover:bg-gray-700'
+                : 'text-gray-200 hover:bg-gray-700 cursor-default'
             }`}
-            disabled={item.disabled}
           >
             <span className="flex items-center gap-2">
               {Icon && <Icon size={14} />}
               {item.label}
             </span>
             <ChevronRight size={14} className="text-gray-500" />
-          </button>
+          </div>
           
           {/* Submenu */}
-          <div className="absolute left-full top-0 ml-1 hidden group-hover:block">
+          <div className="absolute left-full top-0 ml-1 hidden group-hover:block z-[9999]">
             <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[180px]">
               {item.submenu.map((subItem, subIndex) => renderMenuItem(subItem, subIndex))}
             </div>
@@ -184,15 +186,18 @@ export function MenuBar({
     }
 
     return (
-      <button
+      <div
         key={index}
         className={`w-full flex items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
           item.disabled 
             ? 'text-gray-500 cursor-not-allowed' 
-            : 'text-gray-200 hover:bg-gray-700'
+            : 'text-gray-200 hover:bg-gray-700 cursor-pointer'
         }`}
-        onClick={item.action}
-        disabled={item.disabled}
+        onClick={() => {
+          if (!item.disabled && item.action) {
+            item.action();
+          }
+        }}
       >
         <span className="flex items-center gap-2">
           {Icon && <Icon size={14} />}
@@ -201,7 +206,7 @@ export function MenuBar({
         {item.shortcut && (
           <span className="text-gray-500 text-xs ml-4">{item.shortcut}</span>
         )}
-      </button>
+      </div>
     );
   };
 
@@ -234,7 +239,7 @@ export function MenuBar({
 
           {/* Dropdown */}
           {activeMenu === menu.label && (
-            <div className="absolute left-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[200px] z-50">
+            <div className="absolute left-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[200px] z-[9999]">
               {menu.items.map((item, index) => renderMenuItem(item, index))}
             </div>
           )}

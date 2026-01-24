@@ -16,99 +16,84 @@ I'm building **FlowState** - a development memory system with SQLite + MCP Serve
 
 ---
 
-## CURRENT STATUS: GUI 100% COMPLETE! 🎉
+## CURRENT STATUS
 
-All 9 views + Menu Bar + Help System are done:
+### ✅ Working (9/9 views + help system)
+All views work: Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel, DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture
 
-### Views (9/9) ✅
-1. Dashboard - Project cards, status groups
-2. TreeView - Hierarchical component explorer  
-3. KanbanBoard - Drag-drop problem tracking
-4. Timeline - Chronological activity stream
-5. SearchPanel - Semantic search with ⌘K
-6. DecisionTree - Visual problem journey
-7. StoryMode - Narrative chapters
-8. ArchitectureDiagram - Force-layout components
-9. QuickCapture - Global hotkey modal
+HelpSystem works: User Guide, Keyboard Shortcuts, MCP Setup, About
 
-### Menu Bar ✅
-- File: New Project (⌘N), Open Recent →, Export Project… (⌘E), Close Window (⌘W)
-- Edit: Undo/Redo, Cut/Copy/Paste, Quick Capture (⌘⇧M)
-- View: All 9 views + Search (⌘K) + Toggle Sidebar (⌘\)
-- Window: Minimize (⌘M), Zoom, FlowState
-- Help: FlowState Help, Keyboard Shortcuts (⌘?), Check for Updates…, About FlowState
+### ⚠️ BROKEN: MenuBar
 
-### Help System ✅
-- User Guide (4 sections: Getting Started, Views, Workflow, Pro Tips)
-- Keyboard Shortcuts (organized by menu)
-- MCP Server Setup Guide
-- About FlowState
+**The Problem:** Custom React menu bar has a bug where View menu items stop working after navigating to certain views (especially TreeView and StoryMode). You can click File, Edit, View, etc. but the dropdown items don't trigger their actions.
 
----
-
-## WHAT NEEDS TO BE DONE
-
-### 1. MCP Server Setup & Installer
-The MCP server exists at `/Users/johnmartin/code/FlowState/mcp-server/` but needs:
-- Installation script for users
-- Auto-configuration for Claude Desktop
-- Testing the connection
-
-### 2. Build & Distribution
-```bash
-cd "/Users/johnmartin/code/FlowState/gui"
-cargo tauri build
+**What I want:**
 ```
-Then:
-- Package as .dmg for macOS
-- Create installation instructions
-- Consider code signing
+File:
+  - New Project (⌘N)
+  - Open Recent →
+  - Export Project… (⌘E)
+  - Close Window (⌘W)
 
-### 3. Testing
-- Full end-to-end workflow test
-- Test all keyboard shortcuts
-- Test menu items
-- Test help system
+Edit:
+  - Undo/Redo
+  - Cut/Copy/Paste (standard)
+  - Quick Capture (⌘⇧M)
 
-### 4. Optional Enhancements (disabled items in menu)
-- Export Project functionality
-- Toggle Sidebar
-- Check for Updates
-- Import Project
+View:
+  - Dashboard
+  - Timeline
+  - Kanban Board
+  - Toggle Sidebar (⌘\)
+
+Window:
+  - Minimize (⌘M)
+  - Zoom
+  - FlowState (bring to front)
+
+Help:
+  - FlowState Help
+  - Keyboard Shortcuts (⌘?)
+  - Check for Updates…
+  - About FlowState
+```
+
+**Options to consider:**
+1. Use Tauri's native menu API (most reliable)
+2. Use a proper React dropdown library (Radix UI, Headless UI)
+3. Debug why the custom menu breaks in certain views
 
 ---
 
 ## KEY FILES
 
 ```
-/Users/johnmartin/code/FlowState/gui/src/App.tsx                # Main app
-/Users/johnmartin/code/FlowState/gui/src/components/MenuBar.tsx # Menu bar
-/Users/johnmartin/code/FlowState/gui/src/components/HelpSystem.tsx # Help
-/Users/johnmartin/code/FlowState/gui/src-tauri/src/lib.rs       # Rust backend
-/Users/johnmartin/code/FlowState/mcp-server/                    # MCP server
+/Users/johnmartin/code/FlowState/gui/src/App.tsx           # Main app
+/Users/johnmartin/code/FlowState/gui/src/components/MenuBar.tsx  # BROKEN - needs rework
+/Users/johnmartin/code/FlowState/gui/src/components/HelpSystem.tsx  # Working
+/Users/johnmartin/code/FlowState/gui/src/stores/appStore.ts  # Zustand store
 ```
+
+---
+
+## TASK FOR THIS SESSION
+
+**Fix or replace the MenuBar component** so that:
+1. All menu items work reliably
+2. View switching works from any current view
+3. Help menu opens the HelpSystem modal
+4. File > New Project opens create project modal
+5. Edit > Quick Capture opens quick capture modal
 
 ---
 
 ## QUICK START
 
 ```bash
-# Run the app in development
 cd "/Users/johnmartin/code/FlowState/gui"
 cargo tauri dev
-
-# Build for production
-cargo tauri build
 ```
 
 ---
 
-## NOTES
-
-- All GUI components written and compiling
-- Menu bar fully populated with your exact structure
-- Help system comprehensive with MCP setup guide
-- MIT license, open source
-- Co-created by John + Claude
-
-**Session 7 completed the menu bar and help system!**
+**Session 7 left off with a buggy menu bar that needs to be reworked.**

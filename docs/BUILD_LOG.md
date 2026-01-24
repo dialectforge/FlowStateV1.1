@@ -7,51 +7,43 @@
 
 ---
 
-## SESSION 7 - January 23, 2026 (Current)
+## SESSION 7 - January 23, 2026
 
-### ✅ Menu Bar & Help System Complete!
+### Menu Bar & Help System - NEEDS REWORK
 
-#### New Components Created:
-1. **MenuBar.tsx** (260 lines) ✅
-   - Native macOS-style menu bar
-   - File: New Project (⌘N), Open Recent →, Export Project… (⌘E), Close Window (⌘W)
-   - Edit: Undo/Redo, Cut/Copy/Paste, Quick Capture (⌘⇧M)
-   - View: Dashboard, Timeline, Kanban Board, Tree View, Story Mode, Architecture, Decision Tree, Search (⌘K), Toggle Sidebar (⌘\)
-   - Window: Minimize (⌘M), Zoom, FlowState
-   - Help: FlowState Help, Keyboard Shortcuts (⌘?), Check for Updates…, About FlowState
-   - Open Recent submenu shows last 5 projects
+#### Created but has issues:
+1. **MenuBar.tsx** - Native macOS-style menu bar
+   - ⚠️ **BUG**: View menu items stop working after navigating to certain views (TreeView, StoryMode, etc.)
+   - Likely a z-index or event capturing issue
+   - Tried z-[9999], stopPropagation, various click handler approaches - none fully worked
 
-2. **HelpSystem.tsx** (730+ lines) ✅
-   - Comprehensive User Guide with multiple sections:
-     - Getting Started
-     - Views & Navigation  
-     - Recommended Workflow
-     - Pro Tips
-   - Keyboard Shortcuts panel (organized by menu category)
-   - MCP Server Setup Guide (full installation instructions)
-   - About FlowState (version, authors, technologies, license)
-   - Beautiful tabbed interface
+2. **HelpSystem.tsx** (730+ lines) ✅ WORKING
+   - User Guide, Keyboard Shortcuts, MCP Setup, About FlowState
+   - All 4 tabs work correctly
 
-#### Updated Files:
-- **App.tsx** - Integrated MenuBar and HelpSystem with all modals
+#### What needs to happen next session:
+- **Rework the MenuBar component from scratch**
+- Consider using Tauri's native menu system instead of custom React menus
+- Or use a proper dropdown library like Radix UI or Headless UI
+- The custom CSS-based dropdowns have event capturing issues with certain views
 
 ---
 
-## COMPLETE GUI STATUS: 9/9 VIEWS + MENUS + HELP ✅
+## COMPLETE GUI STATUS: 9/9 VIEWS ✅ | MENUS ⚠️ BUGGY
 
-| View | Status | Features |
-|------|--------|----------|
-| Dashboard | ✅ Complete | Project cards, status groups, create modal |
-| TreeView | ✅ Complete | Hierarchical explorer, detail panel, context menu |
-| KanbanBoard | ✅ Complete | Drag-drop columns, problem cards, filters |
-| Timeline | ✅ Complete | Chronological stream, date grouping, event types |
-| SearchPanel | ✅ Complete | Semantic search, filters, ⌘K shortcut |
-| DecisionTree | ✅ Complete | Visual problem journey, SVG export |
-| StoryMode | ✅ Complete | Narrative chapters, HTML export |
-| ArchitectureDiagram | ✅ Complete | Force layout, drag nodes, SVG export |
-| QuickCapture | ✅ Complete | Global hotkey, fast entry |
-| **MenuBar** | ✅ **NEW** | Native menus (File, Edit, View, Window, Help) |
-| **HelpSystem** | ✅ **NEW** | User guide, shortcuts, MCP setup, about |
+| View | Status | Notes |
+|------|--------|-------|
+| Dashboard | ✅ Complete | Working |
+| TreeView | ✅ Complete | Working, but menu breaks here |
+| KanbanBoard | ✅ Complete | Working |
+| Timeline | ✅ Complete | Working |
+| SearchPanel | ✅ Complete | Working |
+| DecisionTree | ✅ Complete | Working |
+| StoryMode | ✅ Complete | Working, but menu breaks here |
+| ArchitectureDiagram | ✅ Complete | Working |
+| QuickCapture | ✅ Complete | Working |
+| **MenuBar** | ⚠️ **BUGGY** | View switching breaks in some views |
+| **HelpSystem** | ✅ Complete | All sections working |
 
 ---
 
@@ -70,68 +62,37 @@ Location: `/Users/johnmartin/code/FlowState/database/schema.sql`
 
 ## WHAT'S DONE
 
-### Phase 1: Core ✅
-- [x] Database schema
-- [x] Basic MCP server with CRUD operations
-- [x] Project/component/problem/solution tools
-- [x] Full-text search
+### Phase 1-5: ✅ COMPLETE
+- Database schema
+- MCP server with all tools
+- All 9 GUI views
+- Help system
 
-### Phase 2: Intelligence ✅
-- [x] Semantic search
-- [x] Smart context tool (get_project_context)
-- [x] Conversation logging
-- [x] Session management
-
-### Phase 3: GUI Foundation ✅
-- [x] Tauri app scaffold
-- [x] Dashboard view
-- [x] Tree view
-- [x] Kanban board
-
-### Phase 4: Visualization ✅
-- [x] Timeline view
-- [x] Decision tree visualizer
-- [x] Quick capture widget
-
-### Phase 5: Story Mode ✅
-- [x] Project story generator
-- [x] Architecture diagram generator
-- [x] Problem journey maps
-- [x] Export functionality (SVG, HTML)
-
-### Phase 6: Polish ✅
-- [x] Native menu bar (File, Edit, View, Window, Help)
-- [x] Comprehensive help system
-- [x] Keyboard shortcuts documentation
-- [x] MCP setup guide
-- [x] About section
+### Phase 6: Polish - IN PROGRESS
+- [x] Help system (working)
+- [ ] **Menu bar (NEEDS REWORK)**
+- [ ] MCP installer
+- [ ] App distribution
 
 ---
 
-## REMAINING WORK
+## KNOWN ISSUES
 
-### Priority 1: MCP Server Installation/Configuration
-- [ ] Create installer script
-- [ ] Auto-configure Claude Desktop config
-- [ ] Test MCP server connection
+### MenuBar Bug (Critical)
+**Symptom:** After navigating to TreeView or StoryMode via the View menu, subsequent menu clicks don't work properly. Can't switch to other views.
 
-### Priority 2: Distribution
-- [ ] Build final macOS .app bundle
-- [ ] Code signing (if needed)
-- [ ] Create DMG installer
-- [ ] Write installation instructions
+**Attempted fixes that didn't work:**
+1. Changed mousedown to click event listener
+2. Added stopPropagation to menu items
+3. Increased z-index to 9999
+4. Simplified click handlers
+5. Removed useCallback
 
-### Priority 3: Testing
-- [ ] Full end-to-end test
-- [ ] Test all keyboard shortcuts
-- [ ] Test menu actions
-- [ ] Test help system navigation
-
-### Priority 4: Optional Enhancements
-- [ ] Export Project functionality
-- [ ] Toggle Sidebar functionality
-- [ ] Check for Updates functionality
-- [ ] Import Project functionality
+**Possible solutions to try:**
+1. Use Tauri's native menu API instead of custom React menus
+2. Use a proper dropdown library (Radix UI, Headless UI, React-Aria)
+3. Investigate if TreeView/StoryMode have pointer-events or focus traps
+4. Use portals to render menu outside the main React tree
 
 ---
 
@@ -142,7 +103,6 @@ Location: `/Users/johnmartin/code/FlowState/database/schema.sql`
 ├── gui/
 │   ├── src/
 │   │   ├── App.tsx ✅
-│   │   ├── App.css
 │   │   ├── components/
 │   │   │   ├── Dashboard.tsx ✅
 │   │   │   ├── TreeView.tsx ✅
@@ -154,8 +114,8 @@ Location: `/Users/johnmartin/code/FlowState/database/schema.sql`
 │   │   │   ├── ArchitectureDiagram.tsx ✅
 │   │   │   ├── QuickCapture.tsx ✅
 │   │   │   ├── CreateModals.tsx ✅
-│   │   │   ├── MenuBar.tsx ✅ NEW
-│   │   │   └── HelpSystem.tsx ✅ NEW
+│   │   │   ├── MenuBar.tsx ⚠️ BUGGY
+│   │   │   └── HelpSystem.tsx ✅
 │   │   ├── hooks/
 │   │   │   └── useDatabase.ts ✅
 │   │   └── stores/
@@ -188,31 +148,14 @@ cargo tauri build
 
 ---
 
-## KEYBOARD SHORTCUTS (Menu Bar)
-
-| Menu | Shortcut | Action |
-|------|----------|--------|
-| File | ⌘N | New Project |
-| File | ⌘E | Export Project |
-| File | ⌘W | Close Window |
-| Edit | ⌘Z | Undo |
-| Edit | ⌘⇧Z | Redo |
-| Edit | ⌘⇧M | Quick Capture |
-| View | ⌘K | Search |
-| View | ⌘\ | Toggle Sidebar |
-| Window | ⌘M | Minimize |
-| Help | ⌘? | Keyboard Shortcuts |
-
----
-
 ## SESSION HISTORY
 
 - **Session 1-4:** MCP Server, Database Schema, Initial GUI setup
-- **Session 5:** Completed 5/9 views (Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel)
-- **Session 6:** Completed remaining 4 views + modals (DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture, CreateModals)
-- **Session 7:** Added MenuBar and HelpSystem (fully populated menus, comprehensive help)
+- **Session 5:** Completed 5/9 views
+- **Session 6:** Completed remaining 4 views + modals
+- **Session 7:** Added MenuBar (buggy) and HelpSystem (working)
+- **Session 8:** TODO - Fix MenuBar
 
 ---
 
-**Total Components:** 12 major components
-**Status:** 🚀 GUI Feature Complete - Ready for MCP integration and distribution
+**Status:** 🔧 Menu bar needs rework before distribution
