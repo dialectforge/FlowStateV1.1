@@ -160,8 +160,6 @@ function App() {
       <MenuBar 
         onOpenHelp={openHelp}
         onNewProject={() => setShowNewProject(true)}
-        onNewComponent={() => selectedProjectId && setShowNewComponent(true)}
-        onNewProblem={() => selectedProjectId && setShowNewProblem(true)}
         onQuickCapture={() => setQuickCaptureOpen(true)}
       />
       

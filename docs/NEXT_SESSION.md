@@ -8,104 +8,107 @@ Copy this to start the next chat:
 
 I'm building **FlowState** - a development memory system with SQLite + MCP Server + Tauri GUI.
 
-**Project Location:** `/Users/johnmartin/code/Flow state/`
+**Project Location:** `/Users/johnmartin/code/FlowState/`
 
 **Spec File:** Read `/mnt/project/Flow_state.md` for full architecture
 
-**Build Log:** `/Users/johnmartin/code/Flow state/docs/BUILD_LOG.md`
+**Build Log:** `/Users/johnmartin/code/FlowState/docs/BUILD_LOG.md`
 
 ---
 
-## CURRENT STATUS: GUI FEATURE COMPLETE! 🎉
+## CURRENT STATUS: GUI 100% COMPLETE! 🎉
 
-All 9 GUI views are built:
-1. ✅ Dashboard - Project list with cards
-2. ✅ TreeView - Hierarchical component explorer  
-3. ✅ KanbanBoard - Drag-drop problem tracking
-4. ✅ Timeline - Chronological activity stream
-5. ✅ SearchPanel - Semantic search with ⌘K
-6. ✅ DecisionTree - Visual problem journey (NEW)
-7. ✅ StoryMode - Narrative chapters (NEW)
-8. ✅ ArchitectureDiagram - Force-layout components (NEW)
-9. ✅ QuickCapture - Global hotkey modal (NEW)
+All 9 views + Menu Bar + Help System are done:
 
-Plus: CreateModals.tsx with Project/Component/Problem modals
+### Views (9/9) ✅
+1. Dashboard - Project cards, status groups
+2. TreeView - Hierarchical component explorer  
+3. KanbanBoard - Drag-drop problem tracking
+4. Timeline - Chronological activity stream
+5. SearchPanel - Semantic search with ⌘K
+6. DecisionTree - Visual problem journey
+7. StoryMode - Narrative chapters
+8. ArchitectureDiagram - Force-layout components
+9. QuickCapture - Global hotkey modal
+
+### Menu Bar ✅
+- File: New Project (⌘N), Open Recent →, Export Project… (⌘E), Close Window (⌘W)
+- Edit: Undo/Redo, Cut/Copy/Paste, Quick Capture (⌘⇧M)
+- View: All 9 views + Search (⌘K) + Toggle Sidebar (⌘\)
+- Window: Minimize (⌘M), Zoom, FlowState
+- Help: FlowState Help, Keyboard Shortcuts (⌘?), Check for Updates…, About FlowState
+
+### Help System ✅
+- User Guide (4 sections: Getting Started, Views, Workflow, Pro Tips)
+- Keyboard Shortcuts (organized by menu)
+- MCP Server Setup Guide
+- About FlowState
 
 ---
 
 ## WHAT NEEDS TO BE DONE
 
-### 1. FINISH TAURI BACKEND (INTERRUPTED)
-The file `/Users/johnmartin/code/Flow state/gui/src-tauri/src/lib.rs` was being updated when session ended. Need to:
-- Complete the lib.rs file with all commands registered
-- Add missing database.rs methods for new commands:
-  - `update_project()`
-  - `update_component()`
-  - `update_problem_status()`
-  - `get_problem_tree()`
-  - `log_attempt()`
-  - `mark_attempt_outcome()`
-  - `mark_problem_solved()`
-  - `update_todo()`
-  - `generate_project_story()`
-  - `generate_problem_journey()`
+### 1. MCP Server Setup & Installer
+The MCP server exists at `/Users/johnmartin/code/FlowState/mcp-server/` but needs:
+- Installation script for users
+- Auto-configuration for Claude Desktop
+- Testing the connection
 
-### 2. TEST THE BUILD
+### 2. Build & Distribution
 ```bash
-cd "/Users/johnmartin/code/Flow state/gui"
-cargo tauri dev
+cd "/Users/johnmartin/code/FlowState/gui"
+cargo tauri build
 ```
+Then:
+- Package as .dmg for macOS
+- Create installation instructions
+- Consider code signing
 
-### 3. WIRE UP REMAINING VIEWS
-- DecisionTree needs `get_problem_tree()` working
-- StoryMode needs `generate_project_story()` working
-- ArchitectureDiagram uses existing data (should work)
-- QuickCapture uses existing commands (should work)
+### 3. Testing
+- Full end-to-end workflow test
+- Test all keyboard shortcuts
+- Test menu items
+- Test help system
 
-### 4. POLISH (OPTIONAL)
-- Add edit functionality for entities
-- Add delete with confirmation
-- Better error handling
-- Loading states
+### 4. Optional Enhancements (disabled items in menu)
+- Export Project functionality
+- Toggle Sidebar
+- Check for Updates
+- Import Project
 
 ---
 
-## KEY FILES TO CHECK
+## KEY FILES
 
 ```
-/Users/johnmartin/code/Flow state/gui/src-tauri/src/lib.rs      # NEEDS COMPLETION
-/Users/johnmartin/code/Flow state/gui/src-tauri/src/database.rs # MAY NEED NEW METHODS
-/Users/johnmartin/code/Flow state/gui/src/App.tsx               # Main app (complete)
-/Users/johnmartin/code/Flow state/gui/src/components/           # All 10 components
+/Users/johnmartin/code/FlowState/gui/src/App.tsx                # Main app
+/Users/johnmartin/code/FlowState/gui/src/components/MenuBar.tsx # Menu bar
+/Users/johnmartin/code/FlowState/gui/src/components/HelpSystem.tsx # Help
+/Users/johnmartin/code/FlowState/gui/src-tauri/src/lib.rs       # Rust backend
+/Users/johnmartin/code/FlowState/mcp-server/                    # MCP server
 ```
 
 ---
 
-## QUICK START COMMAND
+## QUICK START
 
 ```bash
-# Check current state
-cd "/Users/johnmartin/code/Flow state/gui"
-cat src-tauri/src/lib.rs | head -50
-
-# Then complete lib.rs and test
+# Run the app in development
+cd "/Users/johnmartin/code/FlowState/gui"
 cargo tauri dev
+
+# Build for production
+cargo tauri build
 ```
 
 ---
 
 ## NOTES
 
-- All GUI components are written and should compile
-- The Tauri commands just need to be finished and registered
-- Database schema is complete
-- MCP server (Python) is complete with 32 tools
-- This is open source - MIT license
+- All GUI components written and compiling
+- Menu bar fully populated with your exact structure
+- Help system comprehensive with MCP setup guide
+- MIT license, open source
 - Co-created by John + Claude
 
----
-
-**Session 6 Stats:**
-- Created 5 new components (~2,545 lines)
-- All 9 GUI views complete
-- Ready for backend wiring and testing!
+**Session 7 completed the menu bar and help system!**

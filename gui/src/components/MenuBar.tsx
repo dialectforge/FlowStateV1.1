@@ -1,23 +1,20 @@
 /**
  * FlowState - Menu Bar Component
- * Native-feeling menu bar for the app
+ * Native-feeling menu bar matching macOS standards
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore, ViewType } from '../stores/appStore';
 import {
-  Home, FolderTree, Columns3, Clock, Search, GitBranch, 
-  BookOpen, Network, Info, Keyboard,
-  Plus, Copy, Undo, Redo, Sun, Moon, Monitor,
-  FileDown, FileUp, Database, RefreshCw, ChevronRight, Cpu,
-  Zap
+  Home, Clock, Columns3, FolderTree, BookOpen, Network, GitBranch,
+  Search, Plus, FileDown, Undo, Redo, Scissors, Copy, ClipboardPaste,
+  Zap, PanelLeftClose, Minus, Maximize2, HelpCircle, Keyboard, 
+  RefreshCw, Info, ChevronRight
 } from 'lucide-react';
 
 interface MenuBarProps {
   onOpenHelp: (section?: 'guide' | 'shortcuts' | 'mcp' | 'about') => void;
   onNewProject: () => void;
-  onNewComponent: () => void;
-  onNewProblem: () => void;
   onQuickCapture: () => void;
 }
 
@@ -39,13 +36,11 @@ interface MenuSection {
 export function MenuBar({
   onOpenHelp,
   onNewProject,
-  onNewComponent,
-  onNewProblem,
   onQuickCapture,
 }: MenuBarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { setCurrentView, theme, setTheme } = useAppStore();
+  const { setCurrentView, projects } = useAppStore();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -74,20 +69,31 @@ export function MenuBar({
     setActiveMenu(null);
   };
 
+  // Get recent projects (last 5)
+  const recentProjects = projects.slice(0, 5);
+
   const menus: MenuSection[] = [
     {
       label: 'File',
       items: [
         { label: 'New Project', shortcut: '⌘N', icon: Plus, action: () => { onNewProject(); setActiveMenu(null); } },
-        { label: 'New Component', shortcut: '⌘⇧N', icon: Plus, action: () => { onNewComponent(); setActiveMenu(null); } },
-        { label: 'New Problem', icon: Plus, action: () => { onNewProblem(); setActiveMenu(null); } },
+        { 
+          label: 'Open Recent', 
+          icon: Clock,
+          submenu: recentProjects.length > 0 
+            ? recentProjects.map(p => ({
+                label: p.name,
+                action: () => {
+                  useAppStore.getState().setSelectedProjectId(p.id);
+                  setActiveMenu(null);
+                }
+              }))
+            : [{ label: 'No recent projects', disabled: true }]
+        },
         { divider: true, label: '' },
-        { label: 'Quick Capture', shortcut: '⌘⇧M', icon: Zap, action: () => { onQuickCapture(); setActiveMenu(null); } },
+        { label: 'Export Project…', shortcut: '⌘E', icon: FileDown, disabled: true },
         { divider: true, label: '' },
-        { label: 'Export Project...', icon: FileDown, disabled: true },
-        { label: 'Import Project...', icon: FileUp, disabled: true },
-        { divider: true, label: '' },
-        { label: 'Database Location', icon: Database, disabled: true },
+        { label: 'Close Window', shortcut: '⌘W', action: () => { window.close(); } },
       ],
     },
     {
@@ -96,59 +102,46 @@ export function MenuBar({
         { label: 'Undo', shortcut: '⌘Z', icon: Undo, disabled: true },
         { label: 'Redo', shortcut: '⌘⇧Z', icon: Redo, disabled: true },
         { divider: true, label: '' },
-        { label: 'Cut', shortcut: '⌘X', disabled: true },
+        { label: 'Cut', shortcut: '⌘X', icon: Scissors, disabled: true },
         { label: 'Copy', shortcut: '⌘C', icon: Copy, disabled: true },
-        { label: 'Paste', shortcut: '⌘V', disabled: true },
+        { label: 'Paste', shortcut: '⌘V', icon: ClipboardPaste, disabled: true },
         { divider: true, label: '' },
-        { label: 'Find', shortcut: '⌘K', icon: Search, action: () => { navigateToView('search'); } },
+        { label: 'Quick Capture', shortcut: '⌘⇧M', icon: Zap, action: () => { onQuickCapture(); setActiveMenu(null); } },
       ],
     },
     {
       label: 'View',
       items: [
-        { label: 'Dashboard', shortcut: '⌘1', icon: Home, action: () => navigateToView('dashboard') },
-        { label: 'Tree View', shortcut: '⌘2', icon: FolderTree, action: () => navigateToView('tree') },
-        { label: 'Kanban Board', shortcut: '⌘3', icon: Columns3, action: () => navigateToView('kanban') },
-        { label: 'Timeline', shortcut: '⌘4', icon: Clock, action: () => navigateToView('timeline') },
+        { label: 'Dashboard', icon: Home, action: () => navigateToView('dashboard') },
+        { label: 'Timeline', icon: Clock, action: () => navigateToView('timeline') },
+        { label: 'Kanban Board', icon: Columns3, action: () => navigateToView('kanban') },
         { divider: true, label: '' },
-        { label: 'Story Mode', shortcut: '⌘5', icon: BookOpen, action: () => navigateToView('story') },
-        { label: 'Architecture', shortcut: '⌘6', icon: Network, action: () => navigateToView('architecture') },
-        { label: 'Decision Tree', shortcut: '⌘7', icon: GitBranch, action: () => navigateToView('decision') },
+        { label: 'Tree View', icon: FolderTree, action: () => navigateToView('tree') },
+        { label: 'Story Mode', icon: BookOpen, action: () => navigateToView('story') },
+        { label: 'Architecture', icon: Network, action: () => navigateToView('architecture') },
+        { label: 'Decision Tree', icon: GitBranch, action: () => navigateToView('decision') },
         { divider: true, label: '' },
         { label: 'Search', shortcut: '⌘K', icon: Search, action: () => navigateToView('search') },
         { divider: true, label: '' },
-        {
-          label: 'Theme',
-          icon: theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor,
-          submenu: [
-            { label: 'Light', icon: Sun, action: () => { setTheme('light'); setActiveMenu(null); } },
-            { label: 'Dark', icon: Moon, action: () => { setTheme('dark'); setActiveMenu(null); } },
-            { label: 'System', icon: Monitor, action: () => { setTheme('system'); setActiveMenu(null); } },
-          ],
-        },
-        { divider: true, label: '' },
-        { label: 'Reload', shortcut: '⌘R', icon: RefreshCw, action: () => { window.location.reload(); } },
+        { label: 'Toggle Sidebar', shortcut: '⌘\\', icon: PanelLeftClose, disabled: true },
       ],
     },
     {
       label: 'Window',
       items: [
-        { label: 'Minimize', shortcut: '⌘M', disabled: true },
-        { label: 'Zoom', disabled: true },
+        { label: 'Minimize', shortcut: '⌘M', icon: Minus, disabled: true },
+        { label: 'Zoom', icon: Maximize2, disabled: true },
         { divider: true, label: '' },
-        { label: 'Bring All to Front', disabled: true },
+        { label: 'FlowState', action: () => { window.focus(); setActiveMenu(null); } },
       ],
     },
     {
       label: 'Help',
       items: [
-        { label: 'User Guide', icon: BookOpen, action: () => { onOpenHelp('guide'); setActiveMenu(null); } },
-        { label: 'Keyboard Shortcuts', shortcut: '⌘/', icon: Keyboard, action: () => { onOpenHelp('shortcuts'); setActiveMenu(null); } },
+        { label: 'FlowState Help', icon: HelpCircle, action: () => { onOpenHelp('guide'); setActiveMenu(null); } },
+        { label: 'Keyboard Shortcuts', shortcut: '⌘?', icon: Keyboard, action: () => { onOpenHelp('shortcuts'); setActiveMenu(null); } },
         { divider: true, label: '' },
-        { label: 'MCP Server Setup', icon: Cpu, action: () => { onOpenHelp('mcp'); setActiveMenu(null); } },
-        { divider: true, label: '' },
-        { label: 'Report Issue...', disabled: true },
-        { label: 'Check for Updates...', disabled: true },
+        { label: 'Check for Updates…', icon: RefreshCw, disabled: true },
         { divider: true, label: '' },
         { label: 'About FlowState', icon: Info, action: () => { onOpenHelp('about'); setActiveMenu(null); } },
       ],
@@ -182,7 +175,7 @@ export function MenuBar({
           
           {/* Submenu */}
           <div className="absolute left-full top-0 ml-1 hidden group-hover:block">
-            <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[150px]">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[180px]">
               {item.submenu.map((subItem, subIndex) => renderMenuItem(subItem, subIndex))}
             </div>
           </div>
@@ -250,13 +243,6 @@ export function MenuBar({
 
       {/* Spacer - draggable area */}
       <div className="flex-1" />
-
-      {/* Optional: Window controls for custom title bar (if needed) */}
-      {/* <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
-        <button className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400" />
-        <button className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400" />
-        <button className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400" />
-      </div> */}
     </div>
   );
 }

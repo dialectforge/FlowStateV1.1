@@ -21,30 +21,36 @@ interface HelpModalProps {
 // ============================================================
 
 const KEYBOARD_SHORTCUTS = [
-  { category: 'Global', shortcuts: [
-    { keys: ['⌘', 'K'], description: 'Open Search', alt: 'Ctrl+K' },
+  { category: 'File', shortcuts: [
+    { keys: ['⌘', 'N'], description: 'New Project', alt: 'Ctrl+N' },
+    { keys: ['⌘', 'E'], description: 'Export Project', alt: 'Ctrl+E' },
+    { keys: ['⌘', 'W'], description: 'Close Window', alt: 'Ctrl+W' },
+  ]},
+  { category: 'Edit', shortcuts: [
+    { keys: ['⌘', 'Z'], description: 'Undo', alt: 'Ctrl+Z' },
+    { keys: ['⌘', '⇧', 'Z'], description: 'Redo', alt: 'Ctrl+Shift+Z' },
+    { keys: ['⌘', 'X'], description: 'Cut', alt: 'Ctrl+X' },
+    { keys: ['⌘', 'C'], description: 'Copy', alt: 'Ctrl+C' },
+    { keys: ['⌘', 'V'], description: 'Paste', alt: 'Ctrl+V' },
     { keys: ['⌘', '⇧', 'M'], description: 'Quick Capture', alt: 'Ctrl+Shift+M' },
-    { keys: ['Esc'], description: 'Close modals/panels', alt: null },
   ]},
-  { category: 'Navigation', shortcuts: [
-    { keys: ['1'], description: 'Go to Dashboard', alt: null },
-    { keys: ['2'], description: 'Go to Tree View', alt: null },
-    { keys: ['3'], description: 'Go to Kanban Board', alt: null },
-    { keys: ['4'], description: 'Go to Timeline', alt: null },
-    { keys: ['5'], description: 'Go to Story Mode', alt: null },
+  { category: 'View', shortcuts: [
+    { keys: ['⌘', 'K'], description: 'Search', alt: 'Ctrl+K' },
+    { keys: ['⌘', '\\'], description: 'Toggle Sidebar', alt: 'Ctrl+\\' },
   ]},
-  { category: 'Quick Capture', shortcuts: [
+  { category: 'Window', shortcuts: [
+    { keys: ['⌘', 'M'], description: 'Minimize', alt: 'Ctrl+M' },
+  ]},
+  { category: 'Help', shortcuts: [
+    { keys: ['⌘', '?'], description: 'Keyboard Shortcuts', alt: 'Ctrl+?' },
+  ]},
+  { category: 'Quick Capture (when open)', shortcuts: [
     { keys: ['1'], description: 'Problem type', alt: null },
     { keys: ['2'], description: 'Learning type', alt: null },
     { keys: ['3'], description: 'Todo type', alt: null },
     { keys: ['4'], description: 'Change type', alt: null },
     { keys: ['⌘', '↵'], description: 'Save & close', alt: 'Ctrl+Enter' },
-  ]},
-  { category: 'Modals', shortcuts: [
-    { keys: ['⌘', '↵'], description: 'Submit form', alt: 'Ctrl+Enter' },
     { keys: ['Esc'], description: 'Cancel and close', alt: null },
-    { keys: ['Tab'], description: 'Next field', alt: null },
-    { keys: ['⇧', 'Tab'], description: 'Previous field', alt: null },
   ]},
 ];
 
