@@ -320,7 +320,8 @@ export function TreeView() {
     components, 
     problems, 
     learnings, 
-    changes 
+    changes,
+    setShowNewComponent
   } = useAppStore();
   const { loadComponents, loadProblems, loadLearnings, loadChanges } = useDatabase();
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
@@ -522,7 +523,10 @@ export function TreeView() {
             </button>
           </div>
           
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors">
+          <button 
+            onClick={() => setShowNewComponent(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+          >
             <Plus className="w-4 h-4" />
             Add Component
           </button>

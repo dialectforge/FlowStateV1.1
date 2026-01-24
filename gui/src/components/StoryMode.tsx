@@ -4,6 +4,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
 import { useAppStore, Project, Component, Problem, Learning, Change } from '../stores/appStore';
 
 // ============================================================
@@ -397,7 +399,7 @@ export function StoryMode() {
   }, [selectedProjectId, project, components, problems, learnings, changes]);
 
   // Export to HTML
-  const handleExportHTML = () => {
+  const handleExportHTML = async () => {
     if (!story) return;
     
     const html = `
@@ -435,13 +437,18 @@ export function StoryMode() {
 </body>
 </html>`;
     
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${story.project.name.toLowerCase().replace(/\s+/g, '-')}-story.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const filePath = await save({
+        defaultPath: `${story.project.name.toLowerCase().replace(/\s+/g, '-')}-story.html`,
+        filters: [{ name: 'HTML', extensions: ['html'] }]
+      });
+      
+      if (filePath) {
+        await invoke('write_text_file', { path: filePath, content: html });
+      }
+    } catch (error) {
+      console.error('Failed to export HTML:', error);
+    }
   };
 
   // Scroll to chapter

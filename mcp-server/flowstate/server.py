@@ -51,12 +51,13 @@ TOOLS = [
     ),
     Tool(
         name="get_project_context",
-        description="THE KILLER TOOL: Get everything needed to work on a project. Returns: project details, all components, open problems, recent changes, todos, and learnings. Call this at the start of every session!",
+        description="THE KILLER TOOL: Get everything needed to work on a project. Returns: project details, all components, open problems, recent changes, todos, learnings, and file attachments (v1.1). Call this at the start of every session!",
         inputSchema={
             "type": "object",
             "properties": {
                 "project_name": {"type": "string", "description": "Name of the project"},
-                "hours": {"type": "integer", "description": "How far back to look for changes (default 48)", "default": 48}
+                "hours": {"type": "integer", "description": "How far back to look for changes (default 48)", "default": 48},
+                "include_files": {"type": "boolean", "description": "Include file attachments in context (default true)", "default": True}
             },
             "required": ["project_name"]
         }
@@ -469,6 +470,128 @@ TOOLS = [
             "required": ["project_id"]
         }
     ),
+    
+    # ============================================================
+    # v1.1 FILE ATTACHMENT TOOLS
+    # ============================================================
+    Tool(
+        name="attach_file",
+        description="Attach a file to a project, component, or problem. Files can be copied to the project bundle or referenced from their original location.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer", "description": "Project to attach file to"},
+                "file_path": {"type": "string", "description": "Path to the file to attach"},
+                "component_id": {"type": "integer", "description": "Optional component to attach to"},
+                "problem_id": {"type": "integer", "description": "Optional problem to attach to"},
+                "user_description": {"type": "string", "description": "Description of the file"},
+                "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags for categorization"},
+                "copy_to_bundle": {"type": "boolean", "description": "Copy file to project bundle (default: true)", "default": True}
+            },
+            "required": ["project_id", "file_path"]
+        }
+    ),
+    Tool(
+        name="get_attachments",
+        description="Get file attachments for a project, component, or problem.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer", "description": "Filter by project"},
+                "component_id": {"type": "integer", "description": "Filter by component"},
+                "problem_id": {"type": "integer", "description": "Filter by problem"}
+            }
+        }
+    ),
+    Tool(
+        name="remove_attachment",
+        description="Remove a file attachment. Optionally delete the actual file.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "attachment_id": {"type": "integer", "description": "Attachment to remove"},
+                "delete_file": {"type": "boolean", "description": "Also delete the file (default: false)", "default": False}
+            },
+            "required": ["attachment_id"]
+        }
+    ),
+    Tool(
+        name="search_file_content",
+        description="Search across indexed file content (descriptions, snippets, content locations).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"},
+                "project_id": {"type": "integer", "description": "Filter by project"},
+                "file_types": {"type": "array", "items": {"type": "string"}, "description": "Filter by file types"},
+                "limit": {"type": "integer", "description": "Max results (default: 10)", "default": 10}
+            },
+            "required": ["query"]
+        }
+    ),
+    
+    # ============================================================
+    # v1.1 GIT SYNC TOOLS
+    # ============================================================
+    Tool(
+        name="git_init",
+        description="Initialize FlowState data directory as a Git repository. Creates .gitignore and initial commit.",
+        inputSchema={
+            "type": "object",
+            "properties": {}
+        }
+    ),
+    Tool(
+        name="git_status",
+        description="Get Git repository status: branch, remote, pending changes, last commit.",
+        inputSchema={
+            "type": "object",
+            "properties": {}
+        }
+    ),
+    Tool(
+        name="git_sync",
+        description="Sync FlowState data: add all changes, commit, pull --rebase, push. Full sync in one command.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "commit_message": {"type": "string", "description": "Custom commit message (default: timestamp)"}
+            }
+        }
+    ),
+    Tool(
+        name="git_set_remote",
+        description="Add or update the Git remote URL (e.g., GitHub repository).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "remote_url": {"type": "string", "description": "Git remote URL (e.g., https://github.com/user/flowstate-data.git)"}
+            },
+            "required": ["remote_url"]
+        }
+    ),
+    Tool(
+        name="git_clone",
+        description="Clone an existing FlowState repository to this machine.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "remote_url": {"type": "string", "description": "Git remote URL to clone"},
+                "local_path": {"type": "string", "description": "Local path (default: ~/FlowState-Data)"}
+            },
+            "required": ["remote_url"]
+        }
+    ),
+    Tool(
+        name="git_history",
+        description="Get recent Git commit history.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Max commits to return (default: 20)", "default": 20}
+            }
+        }
+    ),
 ]
 
 
@@ -520,6 +643,18 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         "generate_project_story": tools.generate_project_story,
         "generate_problem_journey": tools.generate_problem_journey,
         "generate_architecture_diagram": tools.generate_architecture_diagram,
+        # v1.1 File Attachment Tools
+        "attach_file": tools.attach_file,
+        "get_attachments": tools.get_attachments,
+        "remove_attachment": tools.remove_attachment,
+        "search_file_content": tools.search_file_content,
+        # v1.1 Git Sync Tools
+        "git_init": tools.git_init,
+        "git_status": tools.git_status,
+        "git_sync": tools.git_sync,
+        "git_set_remote": tools.git_set_remote,
+        "git_clone": tools.git_clone,
+        "git_history": tools.git_history,
     }
     
     if name not in tool_map:

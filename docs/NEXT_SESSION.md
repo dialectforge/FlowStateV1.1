@@ -1,99 +1,81 @@
-# FlowState - Next Session Prompt
+# FlowState - Next Session Quick Start
 
-Copy this to start the next chat:
+## Current Status: v1.1 COMPLETE ✅ | DOGFOODING ACTIVE 🐕
 
----
-
-## CONTEXT
-
-I'm building **FlowState** - a development memory system with SQLite + MCP Server + Tauri GUI.
-
-**Project Location:** `/Users/johnmartin/code/FlowState/`
-
-**Spec File:** Read `/mnt/project/Flow_state.md` for full architecture
-
-**Build Log:** `/Users/johnmartin/code/FlowState/docs/BUILD_LOG.md`
+**Last Session:** January 24, 2026 - MCP Server v1.1 Complete
 
 ---
 
-## CURRENT STATUS
+## What's Done ✅
 
-### ✅ Working (9/9 views + help system)
-All views work: Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel, DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture
+### MCP Server (Python)
+- 42 tools total (32 v1.0 + 10 v1.1)
+- v1.1 tools: `attach_file`, `get_attachments`, `remove_attachment`, `search_file_content`
+- v1.1 tools: `git_init`, `git_status`, `git_sync`, `git_set_remote`, `git_clone`, `git_history`
+- Updated `get_project_context` with `include_files` parameter
+- Configured in Claude Desktop
 
-HelpSystem works: User Guide, Keyboard Shortcuts, MCP Setup, About
+### GUI (Tauri + React)
+- All views complete: Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel, DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture
+- v1.1 views: FilesView, SyncStatusBar, Settings
+- Native menu system working
 
-### ⚠️ BROKEN: MenuBar
-
-**The Problem:** Custom React menu bar has a bug where View menu items stop working after navigating to certain views (especially TreeView and StoryMode). You can click File, Edit, View, etc. but the dropdown items don't trigger their actions.
-
-**What I want:**
-```
-File:
-  - New Project (⌘N)
-  - Open Recent →
-  - Export Project… (⌘E)
-  - Close Window (⌘W)
-
-Edit:
-  - Undo/Redo
-  - Cut/Copy/Paste (standard)
-  - Quick Capture (⌘⇧M)
-
-View:
-  - Dashboard
-  - Timeline
-  - Kanban Board
-  - Toggle Sidebar (⌘\)
-
-Window:
-  - Minimize (⌘M)
-  - Zoom
-  - FlowState (bring to front)
-
-Help:
-  - FlowState Help
-  - Keyboard Shortcuts (⌘?)
-  - Check for Updates…
-  - About FlowState
-```
-
-**Options to consider:**
-1. Use Tauri's native menu API (most reliable)
-2. Use a proper React dropdown library (Radix UI, Headless UI)
-3. Debug why the custom menu breaks in certain views
+### Dogfooding
+- FlowState project created to track itself
+- 5 components: MCP Server, GUI, Database, Rust Backend, React Hooks
+- 3 solved problems logged
+- 6 learnings captured
+- 5 todos added
 
 ---
 
-## KEY FILES
+## To Test
 
-```
-/Users/johnmartin/code/FlowState/gui/src/App.tsx           # Main app
-/Users/johnmartin/code/FlowState/gui/src/components/MenuBar.tsx  # BROKEN - needs rework
-/Users/johnmartin/code/FlowState/gui/src/components/HelpSystem.tsx  # Working
-/Users/johnmartin/code/FlowState/gui/src/stores/appStore.ts  # Zustand store
-```
+1. **Restart Claude Desktop** to load FlowState MCP server
+2. Test: `get_project_context "FlowState"`
+3. Test: `git_status`
+4. Test: `attach_file` with a test file
 
 ---
 
-## TASK FOR THIS SESSION
+## Files to Know
 
-**Fix or replace the MenuBar component** so that:
-1. All menu items work reliably
-2. View switching works from any current view
-3. Help menu opens the HelpSystem modal
-4. File > New Project opens create project modal
-5. Edit > Quick Capture opens quick capture modal
+| Component | Path |
+|-----------|------|
+| MCP Server | `/Users/johnmartin/code/FlowState/mcp-server/` |
+| GUI | `/Users/johnmartin/code/FlowState/gui/` |
+| Database | `~/.flowstate/flowstate.db` |
+| Git Data | `~/FlowState-Data/` |
+| Build Log | `/Users/johnmartin/code/FlowState/docs/BUILD_LOG.md` |
 
 ---
 
-## QUICK START
+## Quick Commands
 
 ```bash
+# Development
 cd "/Users/johnmartin/code/FlowState/gui"
-cargo tauri dev
+npm run dev       # Frontend only
+cargo tauri dev   # Full app
+
+# Test MCP Server
+cd "/Users/johnmartin/code/FlowState/mcp-server"
+python3 -c "from flowstate.tools import list_projects; print(list_projects())"
+
+# View database
+sqlite3 ~/.flowstate/flowstate.db ".tables"
 ```
 
 ---
 
-**Session 7 left off with a buggy menu bar that needs to be reworked.**
+## Remaining Todos (from FlowState)
+
+- [ ] Test file attachments end-to-end
+- [ ] Test Git sync with GitHub  
+- [ ] Add AI description generation (Claude API)
+- [ ] Implement file content extraction
+- [ ] Write user documentation
+
+---
+
+**Context flows. Memory persists. FlowState remembers.** 🧠

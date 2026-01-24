@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """FlowState - Development memory system.
 
 A project-centric memory system with:
-- Hierarchical organization (Project → Component → Changes/Problems/Solutions)
+- Hierarchical organization (Project -> Component -> Changes/Problems/Solutions)
 - Decision tree tracking (what failed, what worked, why)
 - Conversation logging (what prompts led to what outcomes)
 - Semantic search with embeddings

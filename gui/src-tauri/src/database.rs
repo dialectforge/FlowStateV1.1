@@ -1,12 +1,12 @@
 // FlowState Database Module - SQLite operations for Tauri
-// Complete implementation with all CRUD operations
+// v1.1: Added Attachments, ContentLocations, Extractions, SyncStatus, Settings
 
 use rusqlite::{Connection, Result, params};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 // ============================================================
-// DATA TYPES
+// v1.0 DATA TYPES
 // ============================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -107,6 +107,116 @@ pub struct Change {
 }
 
 // ============================================================
+// v1.1 DATA TYPES: FILE ATTACHMENTS
+// ============================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Attachment {
+    pub id: i64,
+    pub project_id: i64,
+    pub component_id: Option<i64>,
+    pub problem_id: Option<i64>,
+    // File location
+    pub file_name: String,
+    pub file_path: String,
+    pub file_type: String,
+    pub file_size: Option<i64>,
+    pub file_hash: Option<String>,
+    pub is_external: bool,
+    // User metadata
+    pub user_description: Option<String>,
+    pub tags: Option<String>, // JSON array
+    // AI-generated metadata
+    pub ai_description: Option<String>,
+    pub ai_summary: Option<String>,
+    pub content_extracted: bool,
+    // Timestamps
+    pub created_at: String,
+    pub updated_at: String,
+    pub indexed_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ContentLocation {
+    pub id: i64,
+    pub attachment_id: i64,
+    // What this location contains
+    pub description: String,
+    pub category: Option<String>,
+    // Where in the file
+    pub location_type: String,
+    pub start_location: String,
+    pub end_location: Option<String>,
+    // Optional snippet
+    pub snippet: Option<String>,
+    // Links to FlowState records
+    pub related_problem_id: Option<i64>,
+    pub related_solution_id: Option<i64>,
+    pub related_learning_id: Option<i64>,
+    pub related_component_id: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Extraction {
+    pub id: i64,
+    pub attachment_id: i64,
+    // What was created
+    pub record_type: String,
+    pub record_id: i64,
+    // Source location
+    pub source_location: Option<String>,
+    pub source_snippet: Option<String>,
+    // Confidence and review
+    pub confidence: Option<f64>,
+    pub user_reviewed: bool,
+    pub user_approved: Option<bool>,
+    pub created_at: String,
+}
+
+// ============================================================
+// v1.1 DATA TYPES: SYNC
+// ============================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SyncStatus {
+    pub id: i64,
+    pub device_name: String,
+    pub device_id: String,
+    pub remote_url: Option<String>,
+    pub last_sync_at: Option<String>,
+    pub last_sync_commit: Option<String>,
+    pub pending_changes: i64,
+    pub has_conflicts: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SyncHistory {
+    pub id: i64,
+    pub device_id: String,
+    pub operation: String,
+    pub commit_hash: Option<String>,
+    pub files_changed: Option<i64>,
+    pub status: Option<String>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+}
+
+// ============================================================
+// v1.1 DATA TYPES: SETTINGS
+// ============================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Setting {
+    pub key: String,
+    pub value: String,
+    pub category: String,
+    pub updated_at: String,
+}
+
+// ============================================================
 // DATABASE
 // ============================================================
 
@@ -184,7 +294,6 @@ impl Database {
     }
 
     pub fn update_project(&self, id: i64, name: Option<&str>, description: Option<&str>, status: Option<&str>) -> Result<Project> {
-        // Build dynamic UPDATE query
         let mut updates = Vec::new();
         let mut values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         
@@ -373,7 +482,6 @@ impl Database {
 
         let mut stmt = self.conn.prepare(&sql)?;
         
-        // Build params based on what we have
         let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         
         if let Some(pid) = project_id {
@@ -418,7 +526,6 @@ impl Database {
         if let Some(s) = status {
             updates.push("status = ?");
             values.push(Box::new(s.to_string()));
-            // If status is 'solved', set solved_at
             if s == "solved" {
                 updates.push("solved_at = CURRENT_TIMESTAMP");
             }
@@ -539,13 +646,11 @@ impl Database {
     }
 
     pub fn mark_problem_solved(&self, problem_id: i64, winning_attempt_id: Option<i64>, summary: &str, code_snippet: Option<&str>, key_insight: Option<&str>) -> Result<Solution> {
-        // Update problem status to solved
         self.conn.execute(
             "UPDATE problems SET status = 'solved', solved_at = CURRENT_TIMESTAMP WHERE id = ?",
             params![problem_id],
         )?;
         
-        // If winning attempt exists, mark it as success
         if let Some(attempt_id) = winning_attempt_id {
             self.conn.execute(
                 "UPDATE solution_attempts SET outcome = 'success', confidence = 'verified' WHERE id = ?",
@@ -553,7 +658,6 @@ impl Database {
             )?;
         }
         
-        // Create solution record
         self.conn.execute(
             "INSERT INTO solutions (problem_id, winning_attempt_id, summary, code_snippet, key_insight) VALUES (?, ?, ?, ?, ?)",
             params![problem_id, winning_attempt_id, summary, code_snippet, key_insight],
@@ -638,7 +742,6 @@ impl Database {
         if let Some(s) = status {
             updates.push("status = ?");
             values.push(Box::new(s.to_string()));
-            // If status is 'done', set completed_at
             if s == "done" {
                 updates.push("completed_at = CURRENT_TIMESTAMP");
             }
@@ -789,7 +892,6 @@ impl Database {
     }
 
     pub fn get_recent_changes(&self, project_id: Option<i64>, component_id: Option<i64>, hours: i32) -> Result<Vec<Change>> {
-        // Build the time condition with the hours value embedded directly
         let time_filter = format!("ch.created_at >= datetime('now', '-{} hours')", hours);
         
         let mut sql = String::from(
@@ -813,7 +915,6 @@ impl Database {
             param_values.push(Box::new(cid));
         }
         
-        // Add time filter
         conditions.push(time_filter);
         
         if !conditions.is_empty() {
@@ -880,6 +981,484 @@ impl Database {
              FROM changes WHERE id = ?"
         )?;
         stmt.query_row(params![id], Self::row_to_change)
+    }
+
+    // ============================================================
+    // v1.1: ATTACHMENT OPERATIONS
+    // ============================================================
+
+    fn row_to_attachment(row: &rusqlite::Row) -> rusqlite::Result<Attachment> {
+        Ok(Attachment {
+            id: row.get(0)?,
+            project_id: row.get(1)?,
+            component_id: row.get(2)?,
+            problem_id: row.get(3)?,
+            file_name: row.get(4)?,
+            file_path: row.get(5)?,
+            file_type: row.get(6)?,
+            file_size: row.get(7)?,
+            file_hash: row.get(8)?,
+            is_external: row.get(9)?,
+            user_description: row.get(10)?,
+            tags: row.get(11)?,
+            ai_description: row.get(12)?,
+            ai_summary: row.get(13)?,
+            content_extracted: row.get(14)?,
+            created_at: row.get(15)?,
+            updated_at: row.get(16)?,
+            indexed_at: row.get(17)?,
+        })
+    }
+
+    pub fn get_attachment(&self, id: i64) -> Result<Attachment> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, component_id, problem_id, file_name, file_path, file_type, 
+                    file_size, file_hash, is_external, user_description, tags, ai_description, 
+                    ai_summary, content_extracted, created_at, updated_at, indexed_at 
+             FROM attachments WHERE id = ?"
+        )?;
+        stmt.query_row(params![id], Self::row_to_attachment)
+    }
+
+    pub fn get_attachments(&self, project_id: i64, component_id: Option<i64>, problem_id: Option<i64>) -> Result<Vec<Attachment>> {
+        let mut sql = String::from(
+            "SELECT id, project_id, component_id, problem_id, file_name, file_path, file_type, 
+                    file_size, file_hash, is_external, user_description, tags, ai_description, 
+                    ai_summary, content_extracted, created_at, updated_at, indexed_at 
+             FROM attachments WHERE project_id = ?"
+        );
+        
+        let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(project_id)];
+        
+        if let Some(cid) = component_id {
+            sql.push_str(" AND component_id = ?");
+            param_values.push(Box::new(cid));
+        }
+        if let Some(pid) = problem_id {
+            sql.push_str(" AND problem_id = ?");
+            param_values.push(Box::new(pid));
+        }
+        
+        sql.push_str(" ORDER BY created_at DESC");
+        
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|v| v.as_ref()).collect();
+        let attachments = stmt.query_map(params.as_slice(), Self::row_to_attachment)?
+            .collect::<Result<Vec<_>>>()?;
+        
+        Ok(attachments)
+    }
+
+    pub fn create_attachment(
+        &self,
+        project_id: i64,
+        file_name: &str,
+        file_path: &str,
+        file_type: &str,
+        file_size: Option<i64>,
+        file_hash: Option<&str>,
+        is_external: bool,
+        component_id: Option<i64>,
+        problem_id: Option<i64>,
+        user_description: Option<&str>,
+        tags: Option<&str>,
+    ) -> Result<Attachment> {
+        self.conn.execute(
+            "INSERT INTO attachments (project_id, component_id, problem_id, file_name, file_path, 
+             file_type, file_size, file_hash, is_external, user_description, tags) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![project_id, component_id, problem_id, file_name, file_path, 
+                    file_type, file_size, file_hash, is_external, user_description, tags],
+        )?;
+        self.get_attachment(self.conn.last_insert_rowid())
+    }
+
+    pub fn update_attachment(
+        &self,
+        id: i64,
+        user_description: Option<&str>,
+        tags: Option<&str>,
+        ai_description: Option<&str>,
+        ai_summary: Option<&str>,
+        content_extracted: Option<bool>,
+    ) -> Result<Attachment> {
+        let mut updates = Vec::new();
+        let mut values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        
+        if let Some(ud) = user_description {
+            updates.push("user_description = ?");
+            values.push(Box::new(ud.to_string()));
+        }
+        if let Some(t) = tags {
+            updates.push("tags = ?");
+            values.push(Box::new(t.to_string()));
+        }
+        if let Some(ad) = ai_description {
+            updates.push("ai_description = ?");
+            values.push(Box::new(ad.to_string()));
+        }
+        if let Some(as_) = ai_summary {
+            updates.push("ai_summary = ?");
+            values.push(Box::new(as_.to_string()));
+        }
+        if let Some(ce) = content_extracted {
+            updates.push("content_extracted = ?");
+            values.push(Box::new(ce));
+        }
+        
+        // Always update indexed_at if AI fields are being set
+        if ai_description.is_some() || ai_summary.is_some() {
+            updates.push("indexed_at = CURRENT_TIMESTAMP");
+        }
+        
+        if updates.is_empty() {
+            return self.get_attachment(id);
+        }
+        
+        values.push(Box::new(id));
+        
+        let sql = format!("UPDATE attachments SET {} WHERE id = ?", updates.join(", "));
+        let params: Vec<&dyn rusqlite::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+        self.conn.execute(&sql, params.as_slice())?;
+        
+        self.get_attachment(id)
+    }
+
+    pub fn delete_attachment(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM attachments WHERE id = ?", params![id])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // v1.1: CONTENT LOCATION OPERATIONS
+    // ============================================================
+
+    fn row_to_content_location(row: &rusqlite::Row) -> rusqlite::Result<ContentLocation> {
+        Ok(ContentLocation {
+            id: row.get(0)?,
+            attachment_id: row.get(1)?,
+            description: row.get(2)?,
+            category: row.get(3)?,
+            location_type: row.get(4)?,
+            start_location: row.get(5)?,
+            end_location: row.get(6)?,
+            snippet: row.get(7)?,
+            related_problem_id: row.get(8)?,
+            related_solution_id: row.get(9)?,
+            related_learning_id: row.get(10)?,
+            related_component_id: row.get(11)?,
+            created_at: row.get(12)?,
+        })
+    }
+
+    pub fn get_content_location(&self, id: i64) -> Result<ContentLocation> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, attachment_id, description, category, location_type, start_location, 
+                    end_location, snippet, related_problem_id, related_solution_id, 
+                    related_learning_id, related_component_id, created_at 
+             FROM content_locations WHERE id = ?"
+        )?;
+        stmt.query_row(params![id], Self::row_to_content_location)
+    }
+
+    pub fn get_content_locations_for_attachment(&self, attachment_id: i64) -> Result<Vec<ContentLocation>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, attachment_id, description, category, location_type, start_location, 
+                    end_location, snippet, related_problem_id, related_solution_id, 
+                    related_learning_id, related_component_id, created_at 
+             FROM content_locations WHERE attachment_id = ? ORDER BY start_location"
+        )?;
+        let locations = stmt.query_map(params![attachment_id], Self::row_to_content_location)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(locations)
+    }
+
+    pub fn create_content_location(
+        &self,
+        attachment_id: i64,
+        description: &str,
+        category: Option<&str>,
+        location_type: &str,
+        start_location: &str,
+        end_location: Option<&str>,
+        snippet: Option<&str>,
+        related_problem_id: Option<i64>,
+        related_solution_id: Option<i64>,
+        related_learning_id: Option<i64>,
+        related_component_id: Option<i64>,
+    ) -> Result<ContentLocation> {
+        self.conn.execute(
+            "INSERT INTO content_locations (attachment_id, description, category, location_type, 
+             start_location, end_location, snippet, related_problem_id, related_solution_id, 
+             related_learning_id, related_component_id) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![attachment_id, description, category, location_type, start_location, 
+                    end_location, snippet, related_problem_id, related_solution_id, 
+                    related_learning_id, related_component_id],
+        )?;
+        self.get_content_location(self.conn.last_insert_rowid())
+    }
+
+    pub fn delete_content_location(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM content_locations WHERE id = ?", params![id])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // v1.1: EXTRACTION OPERATIONS
+    // ============================================================
+
+    fn row_to_extraction(row: &rusqlite::Row) -> rusqlite::Result<Extraction> {
+        Ok(Extraction {
+            id: row.get(0)?,
+            attachment_id: row.get(1)?,
+            record_type: row.get(2)?,
+            record_id: row.get(3)?,
+            source_location: row.get(4)?,
+            source_snippet: row.get(5)?,
+            confidence: row.get(6)?,
+            user_reviewed: row.get(7)?,
+            user_approved: row.get(8)?,
+            created_at: row.get(9)?,
+        })
+    }
+
+    pub fn get_extraction(&self, id: i64) -> Result<Extraction> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, attachment_id, record_type, record_id, source_location, source_snippet, 
+                    confidence, user_reviewed, user_approved, created_at 
+             FROM extractions WHERE id = ?"
+        )?;
+        stmt.query_row(params![id], Self::row_to_extraction)
+    }
+
+    pub fn get_extractions_for_attachment(&self, attachment_id: i64) -> Result<Vec<Extraction>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, attachment_id, record_type, record_id, source_location, source_snippet, 
+                    confidence, user_reviewed, user_approved, created_at 
+             FROM extractions WHERE attachment_id = ? ORDER BY created_at"
+        )?;
+        let extractions = stmt.query_map(params![attachment_id], Self::row_to_extraction)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(extractions)
+    }
+
+    pub fn create_extraction(
+        &self,
+        attachment_id: i64,
+        record_type: &str,
+        record_id: i64,
+        source_location: Option<&str>,
+        source_snippet: Option<&str>,
+        confidence: Option<f64>,
+    ) -> Result<Extraction> {
+        self.conn.execute(
+            "INSERT INTO extractions (attachment_id, record_type, record_id, source_location, 
+             source_snippet, confidence) VALUES (?, ?, ?, ?, ?, ?)",
+            params![attachment_id, record_type, record_id, source_location, source_snippet, confidence],
+        )?;
+        self.get_extraction(self.conn.last_insert_rowid())
+    }
+
+    pub fn update_extraction_review(&self, id: i64, user_reviewed: bool, user_approved: Option<bool>) -> Result<Extraction> {
+        self.conn.execute(
+            "UPDATE extractions SET user_reviewed = ?, user_approved = ? WHERE id = ?",
+            params![user_reviewed, user_approved, id],
+        )?;
+        self.get_extraction(id)
+    }
+
+    pub fn delete_extraction(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM extractions WHERE id = ?", params![id])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // v1.1: SYNC STATUS OPERATIONS
+    // ============================================================
+
+    fn row_to_sync_status(row: &rusqlite::Row) -> rusqlite::Result<SyncStatus> {
+        Ok(SyncStatus {
+            id: row.get(0)?,
+            device_name: row.get(1)?,
+            device_id: row.get(2)?,
+            remote_url: row.get(3)?,
+            last_sync_at: row.get(4)?,
+            last_sync_commit: row.get(5)?,
+            pending_changes: row.get(6)?,
+            has_conflicts: row.get(7)?,
+            created_at: row.get(8)?,
+            updated_at: row.get(9)?,
+        })
+    }
+
+    pub fn get_sync_status(&self) -> Result<Option<SyncStatus>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, device_name, device_id, remote_url, last_sync_at, last_sync_commit, 
+                    pending_changes, has_conflicts, created_at, updated_at 
+             FROM sync_status LIMIT 1"
+        )?;
+        match stmt.query_row([], Self::row_to_sync_status) {
+            Ok(s) => Ok(Some(s)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn create_sync_status(&self, device_name: &str, device_id: &str) -> Result<SyncStatus> {
+        self.conn.execute(
+            "INSERT INTO sync_status (device_name, device_id) VALUES (?, ?)",
+            params![device_name, device_id],
+        )?;
+        self.get_sync_status().map(|opt| opt.unwrap())
+    }
+
+    pub fn update_sync_status(
+        &self,
+        remote_url: Option<&str>,
+        last_sync_at: Option<&str>,
+        last_sync_commit: Option<&str>,
+        pending_changes: Option<i64>,
+        has_conflicts: Option<bool>,
+    ) -> Result<SyncStatus> {
+        let mut updates = Vec::new();
+        let mut values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        
+        if let Some(url) = remote_url {
+            updates.push("remote_url = ?");
+            values.push(Box::new(url.to_string()));
+        }
+        if let Some(sync_at) = last_sync_at {
+            updates.push("last_sync_at = ?");
+            values.push(Box::new(sync_at.to_string()));
+        }
+        if let Some(commit) = last_sync_commit {
+            updates.push("last_sync_commit = ?");
+            values.push(Box::new(commit.to_string()));
+        }
+        if let Some(pc) = pending_changes {
+            updates.push("pending_changes = ?");
+            values.push(Box::new(pc));
+        }
+        if let Some(hc) = has_conflicts {
+            updates.push("has_conflicts = ?");
+            values.push(Box::new(hc));
+        }
+        
+        if updates.is_empty() {
+            return self.get_sync_status().map(|opt| opt.unwrap());
+        }
+        
+        let sql = format!("UPDATE sync_status SET {}", updates.join(", "));
+        let params: Vec<&dyn rusqlite::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+        self.conn.execute(&sql, params.as_slice())?;
+        
+        self.get_sync_status().map(|opt| opt.unwrap())
+    }
+
+    // ============================================================
+    // v1.1: SYNC HISTORY OPERATIONS
+    // ============================================================
+
+    fn row_to_sync_history(row: &rusqlite::Row) -> rusqlite::Result<SyncHistory> {
+        Ok(SyncHistory {
+            id: row.get(0)?,
+            device_id: row.get(1)?,
+            operation: row.get(2)?,
+            commit_hash: row.get(3)?,
+            files_changed: row.get(4)?,
+            status: row.get(5)?,
+            error_message: row.get(6)?,
+            created_at: row.get(7)?,
+        })
+    }
+
+    pub fn get_sync_history(&self, limit: i32) -> Result<Vec<SyncHistory>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, device_id, operation, commit_hash, files_changed, status, error_message, created_at 
+             FROM sync_history ORDER BY created_at DESC LIMIT ?"
+        )?;
+        let history = stmt.query_map(params![limit], Self::row_to_sync_history)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(history)
+    }
+
+    pub fn log_sync_operation(
+        &self,
+        device_id: &str,
+        operation: &str,
+        commit_hash: Option<&str>,
+        files_changed: Option<i64>,
+        status: &str,
+        error_message: Option<&str>,
+    ) -> Result<SyncHistory> {
+        self.conn.execute(
+            "INSERT INTO sync_history (device_id, operation, commit_hash, files_changed, status, error_message) 
+             VALUES (?, ?, ?, ?, ?, ?)",
+            params![device_id, operation, commit_hash, files_changed, status, error_message],
+        )?;
+        
+        let id = self.conn.last_insert_rowid();
+        let mut stmt = self.conn.prepare(
+            "SELECT id, device_id, operation, commit_hash, files_changed, status, error_message, created_at 
+             FROM sync_history WHERE id = ?"
+        )?;
+        stmt.query_row(params![id], Self::row_to_sync_history)
+    }
+
+    // ============================================================
+    // v1.1: SETTINGS OPERATIONS
+    // ============================================================
+
+    fn row_to_setting(row: &rusqlite::Row) -> rusqlite::Result<Setting> {
+        Ok(Setting {
+            key: row.get(0)?,
+            value: row.get(1)?,
+            category: row.get(2)?,
+            updated_at: row.get(3)?,
+        })
+    }
+
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let mut stmt = self.conn.prepare("SELECT value FROM settings WHERE key = ?")?;
+        match stmt.query_row(params![key], |row| row.get::<_, String>(0)) {
+            Ok(v) => Ok(Some(v)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str, category: Option<&str>) -> Result<()> {
+        let category = category.unwrap_or("general");
+        self.conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value, category, updated_at) 
+             VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            params![key, value, category],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_all_settings(&self) -> Result<Vec<Setting>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT key, value, category, updated_at FROM settings ORDER BY category, key"
+        )?;
+        let settings = stmt.query_map([], Self::row_to_setting)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(settings)
+    }
+
+    pub fn get_settings_by_category(&self, category: &str) -> Result<Vec<Setting>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT key, value, category, updated_at FROM settings WHERE category = ? ORDER BY key"
+        )?;
+        let settings = stmt.query_map(params![category], Self::row_to_setting)?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(settings)
+    }
+
+    pub fn delete_setting(&self, key: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM settings WHERE key = ?", params![key])?;
+        Ok(())
     }
 
     // ============================================================
@@ -992,6 +1571,38 @@ impl Database {
             results.push(result?);
         }
 
+        // v1.1: Search attachments
+        let sql = match project_id {
+            Some(pid) => format!(
+                "SELECT 'attachment' as type, id, file_name, user_description, ai_summary, project_id
+                 FROM attachments
+                 WHERE project_id = {} AND (LOWER(file_name) LIKE ? OR LOWER(user_description) LIKE ? OR LOWER(ai_summary) LIKE ?)
+                 LIMIT {}", pid, limit
+            ),
+            None => format!(
+                "SELECT 'attachment' as type, id, file_name, user_description, ai_summary, project_id
+                 FROM attachments
+                 WHERE LOWER(file_name) LIKE ? OR LOWER(user_description) LIKE ? OR LOWER(ai_summary) LIKE ?
+                 LIMIT {}", limit
+            ),
+        };
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let attachment_results = stmt.query_map(params![&search_term, &search_term, &search_term], |row| {
+            Ok(serde_json::json!({
+                "type": row.get::<_, String>(0)?,
+                "id": row.get::<_, i64>(1)?,
+                "title": row.get::<_, String>(2)?,
+                "snippet": row.get::<_, Option<String>>(3)?,
+                "ai_summary": row.get::<_, Option<String>>(4)?,
+                "project_id": row.get::<_, i64>(5)?,
+            }))
+        })?;
+
+        for result in attachment_results {
+            results.push(result?);
+        }
+
         Ok(results)
     }
 
@@ -1004,7 +1615,6 @@ impl Database {
         let attempts = self.get_attempts_for_problem(problem_id)?;
         let solution = self.get_solution_for_problem(problem_id)?;
         
-        // Get learnings related to this problem's component
         let learnings = self.get_learnings(None, None, false)?
             .into_iter()
             .filter(|l| l.component_id == Some(problem.component_id))
@@ -1023,14 +1633,12 @@ impl Database {
     // ============================================================
 
     pub fn get_project_stats(&self, project_id: i64) -> Result<serde_json::Value> {
-        // Count components
         let component_count: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM components WHERE project_id = ?",
             params![project_id],
             |row| row.get(0)
         )?;
 
-        // Count open problems
         let open_problems: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM problems p JOIN components c ON p.component_id = c.id 
              WHERE c.project_id = ? AND p.status IN ('open', 'investigating')",
@@ -1038,7 +1646,6 @@ impl Database {
             |row| row.get(0)
         )?;
 
-        // Count solved problems
         let solved_problems: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM problems p JOIN components c ON p.component_id = c.id 
              WHERE c.project_id = ? AND p.status = 'solved'",
@@ -1046,24 +1653,28 @@ impl Database {
             |row| row.get(0)
         )?;
 
-        // Count todos
         let pending_todos: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM todos WHERE project_id = ? AND status = 'pending'",
             params![project_id],
             |row| row.get(0)
         )?;
 
-        // Count learnings
         let learning_count: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM learnings WHERE project_id = ?",
             params![project_id],
             |row| row.get(0)
         )?;
 
-        // Count changes in last 24 hours
         let recent_changes: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM changes ch JOIN components c ON ch.component_id = c.id 
              WHERE c.project_id = ? AND ch.created_at >= datetime('now', '-24 hours')",
+            params![project_id],
+            |row| row.get(0)
+        )?;
+
+        // v1.1: Count attachments
+        let attachment_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM attachments WHERE project_id = ?",
             params![project_id],
             |row| row.get(0)
         )?;
@@ -1075,6 +1686,7 @@ impl Database {
             "pending_todos": pending_todos,
             "learning_count": learning_count,
             "recent_changes": recent_changes,
+            "attachment_count": attachment_count,
         }))
     }
 }

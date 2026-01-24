@@ -1,6 +1,6 @@
 [package]
 name = "flowstate"
-version = "1.0.0"
+version = "1.1.0"
 description = "FlowState - Development memory that flows between sessions"
 authors = ["John Martin", "Claude (Anthropic)"]
 license = "MIT"
@@ -16,8 +16,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
+# v1.1 additions
+sha2 = "0.10"           # File hashing
+uuid = { version = "1", features = ["v4"] }  # Device ID generation
+base64 = "0.21"         # File encoding for images/PDFs

@@ -156,7 +156,7 @@ function SearchResultCard({ result, query, onClick }: SearchResultCardProps) {
 // ============================================================
 
 export function SearchPanel() {
-  const { setCurrentView, selectedProjectId, projects } = useAppStore();
+  const { setCurrentView, selectedProjectId, projects, setSelectedProjectId } = useAppStore();
   const { performSearch } = useDatabase();
   
   const [query, setQuery] = useState('');
@@ -202,8 +202,31 @@ export function SearchPanel() {
   }, [query, contentTypeFilter, handleSearch]);
 
   const handleResultClick = (result: SearchResult) => {
-    // TODO: Navigate to the relevant view based on result type
-    console.log('Clicked result:', result);
+    // Find project ID from project name if available
+    if (result.project_name) {
+      const project = projects.find(p => p.name === result.project_name);
+      if (project) {
+        setSelectedProjectId(project.id);
+      }
+    }
+
+    // Navigate based on result type
+    switch (result.type) {
+      case 'problem':
+      case 'solution':
+        // Go to kanban to see problems
+        setCurrentView('kanban');
+        break;
+      case 'learning':
+      case 'change':
+      case 'conversation':
+        // Go to timeline to see history
+        setCurrentView('timeline');
+        break;
+      default:
+        // Default to dashboard
+        setCurrentView('dashboard');
+    }
   };
 
   const clearSearch = () => {

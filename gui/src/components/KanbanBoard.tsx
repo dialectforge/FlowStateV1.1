@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { 
   ArrowLeft,
   AlertCircle,
@@ -99,10 +100,15 @@ function ProblemCard({ problem, component, onDragStart, onClick }: ProblemCardPr
   return (
     <div
       draggable
-      onDragStart={(e) => onDragStart(e, problem)}
+      onDragStart={(e) => {
+        console.log('Card onDragStart fired for:', problem.title);
+        e.dataTransfer.setData('text/plain', problem.id.toString());
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart(e, problem);
+      }}
       onClick={() => onClick(problem)}
       className={`
-        p-3 rounded-lg cursor-pointer
+        p-3 rounded-lg cursor-grab
         bg-gray-800 hover:bg-gray-750 
         border border-gray-700 hover:border-gray-600
         transition-all duration-200
@@ -154,7 +160,6 @@ function KanbanColumn({
   column, 
   problems, 
   components,
-  onDragOver, 
   onDrop, 
   onDragStart,
   onCardClick 
@@ -165,8 +170,21 @@ function KanbanColumn({
   return (
     <div 
       className="flex-1 min-w-[280px] max-w-[350px]"
-      onDragOver={onDragOver}
-      onDrop={(e) => onDrop(e, column.id)}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        console.log('Entered column:', column.id);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Column outer drop:', column.id);
+        onDrop(e, column.id);
+      }}
     >
       {/* Column header */}
       <div className={`
@@ -184,10 +202,27 @@ function KanbanColumn({
       </div>
 
       {/* Cards container */}
-      <div className={`
-        min-h-[400px] p-2 space-y-2 rounded-b-lg
-        bg-gray-800/30 border border-t-0 border-gray-700
-      `}>
+      <div 
+        className={`
+          min-h-[400px] p-2 space-y-2 rounded-b-lg
+          bg-gray-800/30 border border-t-0 border-gray-700
+        `}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          console.log('Entered cards container:', column.id);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'move';
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Cards container drop:', column.id);
+          onDrop(e, column.id);
+        }}
+      >
         {problems.length === 0 ? (
           <div className="text-center py-8 text-gray-500 text-sm">
             No problems
@@ -217,9 +252,10 @@ interface ProblemDetailModalProps {
   component?: Component;
   onClose: () => void;
   onStatusChange: (status: ProblemStatus) => void;
+  onViewDecisionTree: () => void;
 }
 
-function ProblemDetailModal({ problem, component, onClose, onStatusChange }: ProblemDetailModalProps) {
+function ProblemDetailModal({ problem, component, onClose, onStatusChange, onViewDecisionTree }: ProblemDetailModalProps) {
   return (
     <div 
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -321,6 +357,12 @@ function ProblemDetailModal({ problem, component, onClose, onStatusChange }: Pro
               </button>
             ))}
           </div>
+          <button
+            onClick={onViewDecisionTree}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            🌳 View Decision Tree
+          </button>
         </div>
       </div>
     </div>
@@ -338,14 +380,16 @@ export function KanbanBoard() {
     projects,
     components, 
     problems,
-    setProblems 
+    setProblems,
+    setShowNewProblem,
+    setSelectedProblemId
   } = useAppStore();
   const { loadComponents, loadProblems } = useDatabase();
   
   const [filterComponent, setFilterComponent] = useState<number | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<string | null>(null);
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
-  const [draggedProblem, setDraggedProblem] = useState<Problem | null>(null);
+  // Note: We use dataTransfer for drag data rather than React state for reliability
 
   const currentProject = projects.find(p => p.id === selectedProjectId);
 
@@ -372,7 +416,8 @@ export function KanbanBoard() {
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, problem: Problem) => {
-    setDraggedProblem(problem);
+    console.log('Drag started:', problem.title);
+    // Using dataTransfer is more reliable than React state for drag-drop
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -383,21 +428,53 @@ export function KanbanBoard() {
 
   const handleDrop = async (e: React.DragEvent, newStatus: ProblemStatus) => {
     e.preventDefault();
-    if (!draggedProblem || draggedProblem.status === newStatus) return;
+    e.stopPropagation();
+    
+    // Get problem ID from dataTransfer - this is reliable even if state is stale
+    const problemIdStr = e.dataTransfer.getData('text/plain');
+    console.log('Drop triggered! New status:', newStatus, 'Problem ID from dataTransfer:', problemIdStr);
+    
+    if (!problemIdStr) {
+      console.log('Drop rejected - no problem ID in dataTransfer');
+      return;
+    }
+    
+    const problemId = parseInt(problemIdStr, 10);
+    const problem = problems.find(p => p.id === problemId);
+    
+    if (!problem) {
+      console.log('Drop rejected - problem not found for ID:', problemId);
+      return;
+    }
+    
+    if (problem.status === newStatus) {
+      console.log('Drop rejected - same status, no change needed');
+      return;
+    }
 
+    console.log('Updating problem', problemId, 'from', problem.status, 'to', newStatus);
+    
     // Optimistic update
     const updatedProblems = problems.map(p => 
-      p.id === draggedProblem.id ? { ...p, status: newStatus } : p
+      p.id === problemId ? { ...p, status: newStatus } : p
     );
     setProblems(updatedProblems);
 
-    // TODO: Call API to persist change
-    // await updateProblemStatus(draggedProblem.id, newStatus);
-
-    setDraggedProblem(null);
+    // Persist to database
+    try {
+      await invoke('update_problem', {
+        id: problemId,
+        status: newStatus
+      });
+      console.log('Database update successful');
+    } catch (error) {
+      console.error('Failed to update problem status:', error);
+      // Revert on error
+      setProblems(problems);
+    }
   };
 
-  const handleStatusChange = (newStatus: ProblemStatus) => {
+  const handleStatusChange = async (newStatus: ProblemStatus) => {
     if (!selectedProblem) return;
 
     const updatedProblems = problems.map(p => 
@@ -405,6 +482,16 @@ export function KanbanBoard() {
     );
     setProblems(updatedProblems);
     setSelectedProblem({ ...selectedProblem, status: newStatus });
+
+    // Persist to database
+    try {
+      await invoke('update_problem', {
+        id: selectedProblem.id,
+        status: newStatus
+      });
+    } catch (error) {
+      console.error('Failed to update problem status:', error);
+    }
   };
 
   // Handle no project selected
@@ -474,7 +561,10 @@ export function KanbanBoard() {
             </select>
 
             {/* Add problem button */}
-            <button className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors text-sm">
+            <button 
+              onClick={() => setShowNewProblem(true)}
+              className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors text-sm"
+            >
               <Plus className="w-4 h-4" />
               New Problem
             </button>
@@ -507,6 +597,10 @@ export function KanbanBoard() {
           component={components.find(c => c.id === selectedProblem.component_id)}
           onClose={() => setSelectedProblem(null)}
           onStatusChange={handleStatusChange}
+          onViewDecisionTree={() => {
+            setSelectedProblemId(selectedProblem.id);
+            setCurrentView('decision');
+          }}
         />
       )}
     </div>

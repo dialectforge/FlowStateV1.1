@@ -109,7 +109,7 @@ export interface Session {
 }
 
 // View types
-export type ViewType = 'dashboard' | 'tree' | 'kanban' | 'timeline' | 'decision' | 'story' | 'architecture' | 'search';
+export type ViewType = 'dashboard' | 'tree' | 'kanban' | 'timeline' | 'decision' | 'story' | 'architecture' | 'search' | 'files';
 
 // ============================================================
 // STORE STATE
@@ -170,6 +170,14 @@ interface AppState {
   setQuickCaptureOpen: (open: boolean) => void;
   quickCaptureType: 'problem' | 'learning' | 'todo' | 'change' | null;
   setQuickCaptureType: (type: 'problem' | 'learning' | 'todo' | 'change' | null) => void;
+
+  // Create modals
+  showNewProject: boolean;
+  setShowNewProject: (show: boolean) => void;
+  showNewComponent: boolean;
+  setShowNewComponent: (show: boolean) => void;
+  showNewProblem: boolean;
+  setShowNewProblem: (show: boolean) => void;
 
   // Theme
   theme: 'light' | 'dark' | 'system';
@@ -239,6 +247,14 @@ export const useAppStore = create<AppState>((set) => ({
   setQuickCaptureOpen: (open) => set({ isQuickCaptureOpen: open }),
   quickCaptureType: null,
   setQuickCaptureType: (type) => set({ quickCaptureType: type }),
+
+  // Create modals
+  showNewProject: false,
+  setShowNewProject: (show) => set({ showNewProject: show }),
+  showNewComponent: false,
+  setShowNewComponent: (show) => set({ showNewComponent: show }),
+  showNewProblem: false,
+  setShowNewProblem: (show) => set({ showNewProblem: show }),
 
   // Theme
   theme: 'system',

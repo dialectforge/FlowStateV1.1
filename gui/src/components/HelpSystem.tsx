@@ -3,7 +3,7 @@
  * Includes: User Guide, Keyboard Shortcuts, MCP Setup, About
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   X, Book, Keyboard, Cpu, Info, 
   Home, FolderTree, GitBranch, Zap,
@@ -472,6 +472,11 @@ const MarkdownContent = ({ content }: { content: string }) => {
 export function HelpModal({ isOpen, onClose, initialSection = 'guide' }: HelpModalProps) {
   const [activeSection, setActiveSection] = useState(initialSection);
   const [expandedGuide, setExpandedGuide] = useState<string | null>('getting-started');
+
+  // Sync active section with initialSection prop whenever it changes
+  useEffect(() => {
+    setActiveSection(initialSection);
+  }, [initialSection]);
 
   if (!isOpen) return null;
 
