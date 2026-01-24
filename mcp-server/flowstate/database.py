@@ -1,6 +1,8 @@
 """SQLite database operations for FlowState."""
 
 import json
+import os
+import platform
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -12,8 +14,17 @@ from .models import (
 )
 
 
-# Default database location
-DEFAULT_DB_PATH = Path.home() / ".flowstate" / "flowstate.db"
+# Default database location - use same path as Tauri GUI
+# macOS: ~/Library/Application Support/flowstate/flowstate.db
+# Linux: ~/.local/share/flowstate/flowstate.db
+# Windows: %LOCALAPPDATA%/flowstate/flowstate.db
+import platform
+if platform.system() == "Darwin":
+    DEFAULT_DB_PATH = Path.home() / "Library" / "Application Support" / "flowstate" / "flowstate.db"
+elif platform.system() == "Windows":
+    DEFAULT_DB_PATH = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "flowstate" / "flowstate.db"
+else:
+    DEFAULT_DB_PATH = Path.home() / ".local" / "share" / "flowstate" / "flowstate.db"
 SCHEMA_PATH = Path(__file__).parent.parent.parent / "database" / "schema.sql"
 
 

@@ -150,7 +150,20 @@ function FileCard({ attachment, components, onView, onRemove, onDescribe, onExtr
   const [loadingLocations, setLoadingLocations] = useState(false);
 
   const componentName = components.find(c => c.id === attachment.component_id)?.name;
-  const tags = attachment.tags ? JSON.parse(attachment.tags) : [];
+  
+  // Tags are stored as comma-separated strings, not JSON arrays
+  const parseTags = (tagsStr: string | undefined): string[] => {
+    if (!tagsStr) return [];
+    // Try JSON parse first (in case it's a JSON array), fall back to comma-split
+    try {
+      const parsed = JSON.parse(tagsStr);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      // Not JSON, treat as comma-separated string
+      return tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+    }
+  };
+  const tags = parseTags(attachment.tags);
 
   const loadLocations = async () => {
     if (locations.length > 0) return;

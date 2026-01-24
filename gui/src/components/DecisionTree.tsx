@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { useAppStore } from '../stores/appStore';
 import { getProblemTree, ProblemTree, SolutionAttempt } from '../hooks/useDatabase';
 
@@ -400,19 +402,25 @@ export function DecisionTree() {
   );
 
   // Export as SVG
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!svgRef.current) return;
     
-    const svgData = new XMLSerializer().serializeToString(svgRef.current);
-    const blob = new Blob([svgData], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `problem-journey-${selectedProblemId}.svg`;
-    a.click();
-    
-    URL.revokeObjectURL(url);
+    try {
+      const svgData = new XMLSerializer().serializeToString(svgRef.current);
+      
+      // Use Tauri's save dialog
+      const filePath = await save({
+        defaultPath: `problem-journey-${selectedProblemId}.svg`,
+        filters: [{ name: 'SVG Image', extensions: ['svg'] }]
+      });
+      
+      if (filePath) {
+        await writeTextFile(filePath, svgData);
+        console.log('SVG exported to:', filePath);
+      }
+    } catch (error) {
+      console.error('Failed to export SVG:', error);
+    }
   };
 
   return (

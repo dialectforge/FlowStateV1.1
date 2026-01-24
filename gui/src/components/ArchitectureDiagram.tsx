@@ -4,6 +4,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { useAppStore, Problem } from '../stores/appStore';
 
 // ============================================================
@@ -445,19 +447,25 @@ export function ArchitectureDiagram() {
   };
 
   // Export SVG
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!svgRef.current) return;
     
-    const svgData = new XMLSerializer().serializeToString(svgRef.current);
-    const blob = new Blob([svgData], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${project?.name || 'architecture'}-diagram.svg`;
-    a.click();
-    
-    URL.revokeObjectURL(url);
+    try {
+      const svgData = new XMLSerializer().serializeToString(svgRef.current);
+      
+      // Use Tauri's save dialog
+      const filePath = await save({
+        defaultPath: `${project?.name || 'architecture'}-diagram.svg`,
+        filters: [{ name: 'SVG Image', extensions: ['svg'] }]
+      });
+      
+      if (filePath) {
+        await writeTextFile(filePath, svgData);
+        console.log('SVG exported to:', filePath);
+      }
+    } catch (error) {
+      console.error('Failed to export SVG:', error);
+    }
   };
 
   // Reset simulation

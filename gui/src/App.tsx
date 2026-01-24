@@ -21,6 +21,7 @@ import { QuickCapture } from './components/QuickCapture';
 import { HelpModal, ShortcutsModal } from './components/HelpSystem';
 import { CreateProjectModal, CreateComponentModal, CreateProblemModal } from './components/CreateModals';
 import { FilesView } from './components/FilesView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { SyncStatusBar } from './components/SyncStatusBar';
 import { Settings } from './components/Settings';
 import './App.css';
@@ -96,6 +97,11 @@ function App() {
         // File menu
         case 'new_project':
           setShowNewProject(true);
+          break;
+        case 'open_project':
+          // Navigate to dashboard to select a project
+          setCurrentView('dashboard');
+          showToast('Select a project from the dashboard', 'info');
           break;
         case 'import_file':
           // Navigate to files view for import
@@ -383,7 +389,7 @@ function App() {
       case 'timeline':
         return <Timeline />;
       case 'files':
-        return <FilesView />;
+        return <ErrorBoundary><FilesView /></ErrorBoundary>;
       case 'story':
         return <StoryMode />;
       case 'architecture':

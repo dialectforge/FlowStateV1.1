@@ -523,3 +523,76 @@ open "/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos
 ---
 
 **Status:** v1.1 COMPLETE ✅ | MCP Server FIXED ✅ | GUI LAUNCHED ✅ | DOGFOODING ACTIVE 🐕
+
+
+---
+
+## SESSION 18 - January 24, 2026
+
+### Full Project History Loaded into FlowState ✅
+
+**What Was Done:**
+
+1. **Attached Specification Documents** ✅
+   - `Flow state.md` (v1.0 spec) - 76KB
+   - `FlowStatev1.1.rtf` (v1.1 spec) - 53KB
+   - Both copied to project bundle with tags
+
+2. **Created Component Hierarchy** ✅
+   - MCP Server (parent)
+     - MCP Tools v1.0 (complete)
+     - MCP Tools v1.1 (complete)
+   - GUI (parent)
+     - GUI Views (complete)
+     - GUI Views v1.1 (complete)
+     - Native Menu (complete)
+     - Help System (complete)
+   - Database (complete)
+   - Rust Backend (complete)
+   - React Hooks (complete)
+
+3. **Logged Solved Problems with Decision Trees** ✅
+   - Custom MenuBar buggy → Replaced with native Tauri menu
+   - Kanban drag-drop not working → Use dataTransfer instead of React state
+   - MCP Server fails on restart → Created wrapper script with PYTHONPATH
+   - TypeScript build failure → Clean install with --include=dev
+
+4. **Captured 12 Learnings** ✅
+   - Tauri native menus > custom React menus
+   - SQLite triggers need IF NOT EXISTS
+   - Split React components by concern
+   - cargo tauri dev for fast iteration
+   - File attachments in bundles enable sync
+   - MCP tools return dicts, not Pydantic models
+   - rusqlite Option handling with as_deref()
+   - Git-based sync simpler than cloud services
+   - Direct API + React hook wrappers pattern
+   - MCP logs at ~/Library/Logs/Claude/
+   - Self-contained views with loading/error states
+   - API key masking in UI
+
+5. **Logged 5 Key Changes** ✅
+   - Schema v1.0 → v1.1
+   - MCP tools 32 → 42
+   - Rust commands ~40 → 60+
+   - Menu: React → Native Tauri
+   - Hooks file ~360 → ~750 lines
+
+6. **Updated All Component Statuses** ✅
+   - All 11 components marked as `complete`
+
+**Files Modified:**
+- FlowState database at `~/.flowstate/flowstate.db`
+
+**FlowState Project Stats:**
+- 11 components (all complete)
+- 7 solved problems (4 new from build log)
+- 12 learnings
+- 5 changes logged
+- 5 todos pending
+- 2 file attachments
+
+---
+
+**Status:** v1.1 COMPLETE ✅ | MCP Server WORKING ✅ | GUI BUILT ✅ | DOGFOODING COMPLETE 🐕
+

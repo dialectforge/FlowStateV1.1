@@ -3,7 +3,7 @@
  * Columns: Open, Investigating, Blocked, Solved
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { 
   ArrowLeft,
@@ -71,10 +71,13 @@ interface ProblemCardProps {
   problem: Problem;
   component?: Component;
   onDragStart: (e: React.DragEvent, problem: Problem) => void;
+  onDragEnd: (e: React.DragEvent) => void;
   onClick: (problem: Problem) => void;
 }
 
-function ProblemCard({ problem, component, onDragStart, onClick }: ProblemCardProps) {
+function ProblemCard({ problem, component, onDragStart, onDragEnd, onClick }: ProblemCardProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'critical': return 'bg-red-600 text-white';
@@ -99,21 +102,30 @@ function ProblemCard({ problem, component, onDragStart, onClick }: ProblemCardPr
 
   return (
     <div
-      draggable
+      draggable="true"
       onDragStart={(e) => {
-        console.log('Card onDragStart fired for:', problem.title);
-        e.dataTransfer.setData('text/plain', problem.id.toString());
+        setIsDragging(true);
+        // Set data in multiple formats for compatibility
+        const dragData = JSON.stringify({ id: problem.id, title: problem.title });
+        e.dataTransfer.setData('application/json', dragData);
+        e.dataTransfer.setData('text/plain', dragData);
         e.dataTransfer.effectAllowed = 'move';
+        console.log('Setting drag data:', dragData);
         onDragStart(e, problem);
+      }}
+      onDragEnd={(e) => {
+        setIsDragging(false);
+        console.log('Drag ended for:', problem.title);
+        onDragEnd(e);
       }}
       onClick={() => onClick(problem)}
       className={`
-        p-3 rounded-lg cursor-grab
+        p-3 rounded-lg cursor-grab select-none
         bg-gray-800 hover:bg-gray-750 
         border border-gray-700 hover:border-gray-600
         transition-all duration-200
         hover:shadow-lg hover:shadow-black/20
-        active:scale-[0.98]
+        ${isDragging ? 'opacity-50 scale-95 ring-2 ring-purple-500' : ''}
       `}
     >
       {/* Title */}
@@ -153,7 +165,9 @@ interface KanbanColumnProps {
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, status: ProblemStatus) => void;
   onDragStart: (e: React.DragEvent, problem: Problem) => void;
+  onDragEnd: (e: React.DragEvent) => void;
   onCardClick: (problem: Problem) => void;
+  columnRef: (el: HTMLDivElement | null) => void;
 }
 
 function KanbanColumn({ 
@@ -162,29 +176,64 @@ function KanbanColumn({
   components,
   onDrop, 
   onDragStart,
-  onCardClick 
+  onDragEnd,
+  onCardClick,
+  columnRef
 }: KanbanColumnProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  
   const getComponent = (componentId: number) => 
     components.find(c => c.id === componentId);
 
+  // Unified drag event handlers for the entire column
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!isDragOver) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Check if we're actually leaving the column
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+    ) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    console.log('=== DROP EVENT ===');
+    console.log('Column:', column.id);
+    console.log('DataTransfer types:', e.dataTransfer.types);
+    
+    const jsonData = e.dataTransfer.getData('application/json');
+    const textData = e.dataTransfer.getData('text/plain');
+    console.log('JSON data:', jsonData);
+    console.log('Text data:', textData);
+    
+    setIsDragOver(false);
+    onDrop(e, column.id);
+  };
+
   return (
     <div 
-      className="flex-1 min-w-[280px] max-w-[350px]"
-      onDragEnter={(e) => {
-        e.preventDefault();
-        console.log('Entered column:', column.id);
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = 'move';
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Column outer drop:', column.id);
-        onDrop(e, column.id);
-      }}
+      ref={columnRef}
+      data-column-id={column.id}
+      className={`
+        flex-1 min-w-[280px] max-w-[350px] flex flex-col
+        ${isDragOver ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-gray-900 rounded-lg' : ''}
+      `}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Column header */}
       <div className={`
@@ -204,24 +253,11 @@ function KanbanColumn({
       {/* Cards container */}
       <div 
         className={`
-          min-h-[400px] p-2 space-y-2 rounded-b-lg
+          flex-1 min-h-[400px] p-2 space-y-2 rounded-b-lg
           bg-gray-800/30 border border-t-0 border-gray-700
+          transition-all duration-200
+          ${isDragOver ? 'bg-purple-900/20' : ''}
         `}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          console.log('Entered cards container:', column.id);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = 'move';
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('Cards container drop:', column.id);
-          onDrop(e, column.id);
-        }}
       >
         {problems.length === 0 ? (
           <div className="text-center py-8 text-gray-500 text-sm">
@@ -234,6 +270,7 @@ function KanbanColumn({
               problem={problem}
               component={getComponent(problem.component_id)}
               onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
               onClick={onCardClick}
             />
           ))
@@ -389,15 +426,19 @@ export function KanbanBoard() {
   const [filterComponent, setFilterComponent] = useState<number | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<string | null>(null);
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
-  // Note: We use dataTransfer for drag data rather than React state for reliability
+  // Use React state for drag tracking since dataTransfer doesn't work reliably in Tauri WebKit
+  const [draggingProblem, setDraggingProblem] = useState<Problem | null>(null);
+  // Store column refs for position-based drop detection
+  const columnRefs = useRef<Map<ProblemStatus, HTMLDivElement>>(new Map());
 
   const currentProject = projects.find(p => p.id === selectedProjectId);
 
-  // Load data
+  // Load data - MUST use includeAll=true to get all problems regardless of status
+  // The Kanban board needs open, investigating, blocked, AND solved problems
   useEffect(() => {
     if (selectedProjectId) {
       loadComponents(selectedProjectId);
-      loadProblems(selectedProjectId);
+      loadProblems(selectedProjectId, true); // includeAll=true to get all statuses
     }
   }, [selectedProjectId]);
 
@@ -414,11 +455,52 @@ export function KanbanBoard() {
     return acc;
   }, {} as Record<ProblemStatus, Problem[]>);
 
-  // Drag handlers
+  // Drag handlers - using React state since dataTransfer doesn't work in Tauri WebKit
   const handleDragStart = (e: React.DragEvent, problem: Problem) => {
     console.log('Drag started:', problem.title);
-    // Using dataTransfer is more reliable than React state for drag-drop
+    setDraggingProblem(problem);
     e.dataTransfer.effectAllowed = 'move';
+    // Still set dataTransfer for visual feedback, but we won't rely on it
+    e.dataTransfer.setData('text/plain', String(problem.id));
+  };
+
+  // Position-based drop detection since onDrop doesn't fire in Tauri WebKit
+  const handleDragEnd = (e: React.DragEvent) => {
+    console.log('Drag ended at position:', e.clientX, e.clientY);
+    
+    if (!draggingProblem) {
+      console.log('No dragging problem, skipping');
+      return;
+    }
+
+    // Find which column the cursor is over (with padding to avoid gap drops)
+    const EDGE_PADDING = 8; // Ignore drops too close to column edges
+    let targetColumn: ProblemStatus | null = null;
+    
+    columnRefs.current.forEach((el, columnId) => {
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        // Check if cursor is within the column with padding
+        if (
+          e.clientX >= rect.left + EDGE_PADDING &&
+          e.clientX <= rect.right - EDGE_PADDING &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        ) {
+          targetColumn = columnId;
+          console.log('Cursor is over column:', columnId);
+        }
+      }
+    });
+
+    if (targetColumn && targetColumn !== draggingProblem.status) {
+      console.log(`Moving problem from ${draggingProblem.status} to ${targetColumn}`);
+      performDrop(targetColumn);
+    } else {
+      console.log('No valid drop target or same column');
+    }
+
+    setDraggingProblem(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -426,47 +508,77 @@ export function KanbanBoard() {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = async (e: React.DragEvent, newStatus: ProblemStatus) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Get problem ID from dataTransfer - this is reliable even if state is stale
-    const problemIdStr = e.dataTransfer.getData('text/plain');
-    console.log('Drop triggered! New status:', newStatus, 'Problem ID from dataTransfer:', problemIdStr);
-    
-    if (!problemIdStr) {
-      console.log('Drop rejected - no problem ID in dataTransfer');
-      return;
-    }
-    
-    const problemId = parseInt(problemIdStr, 10);
-    const problem = problems.find(p => p.id === problemId);
+  // Perform the actual drop operation
+  const performDrop = async (newStatus: ProblemStatus) => {
+    const problem = draggingProblem;
     
     if (!problem) {
-      console.log('Drop rejected - problem not found for ID:', problemId);
-      return;
-    }
-    
-    if (problem.status === newStatus) {
-      console.log('Drop rejected - same status, no change needed');
+      console.error('No dragging problem');
       return;
     }
 
-    console.log('Updating problem', problemId, 'from', problem.status, 'to', newStatus);
-    
+    console.log(`Performing drop: ${problem.title} -> ${newStatus}`);
+
     // Optimistic update
     const updatedProblems = problems.map(p => 
-      p.id === problemId ? { ...p, status: newStatus } : p
+      p.id === problem.id ? { ...p, status: newStatus } : p
     );
     setProblems(updatedProblems);
 
     // Persist to database
     try {
-      await invoke('update_problem', {
-        id: problemId,
+      const result = await invoke('update_problem', {
+        id: problem.id,
         status: newStatus
       });
-      console.log('Database update successful');
+      console.log('Update result:', result);
+    } catch (error) {
+      console.error('Failed to update problem status:', error);
+      // Revert on error
+      setProblems(problems);
+    }
+  };
+
+  // Legacy onDrop handler (kept for compatibility, but doesn't fire in Tauri)
+  const handleDrop = async (e: React.DragEvent, newStatus: ProblemStatus) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('Drop handler called for status:', newStatus);
+    console.log('Dragging problem from state:', draggingProblem?.title);
+    
+    // Use React state instead of dataTransfer (which doesn't work in Tauri WebKit)
+    const problem = draggingProblem;
+    
+    if (!problem) {
+      console.error('No dragging problem in state');
+      return;
+    }
+    
+    if (problem.status === newStatus) {
+      console.log('Problem already in this status, skipping');
+      setDraggingProblem(null);
+      return;
+    }
+
+    console.log(`Moving problem ${problem.id} from ${problem.status} to ${newStatus}`);
+
+    // Optimistic update
+    const updatedProblems = problems.map(p => 
+      p.id === problem.id ? { ...p, status: newStatus } : p
+    );
+    setProblems(updatedProblems);
+
+    // Clear dragging state
+    setDraggingProblem(null);
+
+    // Persist to database
+    try {
+      const result = await invoke('update_problem', {
+        id: problem.id,
+        status: newStatus
+      });
+      console.log('Update result:', result);
     } catch (error) {
       console.error('Failed to update problem status:', error);
       // Revert on error
@@ -584,7 +696,15 @@ export function KanbanBoard() {
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
               onCardClick={setSelectedProblem}
+              columnRef={(el) => {
+                if (el) {
+                  columnRefs.current.set(column.id, el);
+                } else {
+                  columnRefs.current.delete(column.id);
+                }
+              }}
             />
           ))}
         </div>
