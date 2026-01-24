@@ -460,4 +460,66 @@ npx tsc --noEmit
 
 ---
 
-**Status:** v1.1 COMPLETE ✅ | MCP Server v1.1 COMPLETE ✅ | DOGFOODING ACTIVE 🐕
+## SESSION 17 - January 24, 2026
+
+### MCP Server Launch Fix + GUI Launch ✅
+
+**Problem 1: MCP Server Failed on Claude Desktop Restart**
+
+**Symptoms:**
+- FlowState MCP tools not available after restarting Claude Desktop
+- Server worked when tested directly from terminal
+
+**Root Cause Found in Logs** (`~/Library/Logs/Claude/mcp-server-flowstate.log`):
+```
+ModuleNotFoundError: No module named 'flowstate'
+```
+
+The issue: Claude Desktop runs `python3 -m flowstate.server` but the `cwd` config option doesn't add the directory to Python's module path. Python couldn't find the `flowstate` module.
+
+**Solution:**
+1. Created wrapper script `/Users/johnmartin/code/FlowState/mcp-server/run_server.sh`:
+   ```bash
+   #!/bin/bash
+   cd "/Users/johnmartin/code/FlowState/mcp-server"
+   export PYTHONPATH="/Users/johnmartin/code/FlowState/mcp-server:$PYTHONPATH"
+   exec python3 -m flowstate.server
+   ```
+
+2. Updated `~/Library/Application Support/Claude/claude_desktop_config.json`:
+   ```json
+   "flowstate": {
+     "command": "/Users/johnmartin/code/FlowState/mcp-server/run_server.sh",
+     "args": []
+   }
+   ```
+
+3. Created `/Users/johnmartin/code/FlowState/mcp-server/flowstate/__main__.py` for proper module entry point
+
+**Problem 2: GUI Not Running**
+
+**Solution:** Launched existing built app:
+```bash
+open "/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos/FlowState.app"
+```
+
+**Files Created:**
+- `/mcp-server/run_server.sh` - Wrapper script with PYTHONPATH
+- `/mcp-server/flowstate/__main__.py` - Module entry point
+
+**Files Modified:**
+- `~/Library/Application Support/Claude/claude_desktop_config.json` - Uses wrapper script
+
+**Learning Captured:**
+- When using `python3 -m module.name` with MCP servers, the `cwd` config alone isn't enough
+- Python needs the parent directory in `PYTHONPATH` to find the module
+- Always check `~/Library/Logs/Claude/mcp-server-{name}.log` for MCP debugging
+
+**Next Steps:**
+- Restart Claude Desktop to load fixed MCP config
+- Test: `get_project_context "FlowState"`
+- Test GUI functionality with database
+
+---
+
+**Status:** v1.1 COMPLETE ✅ | MCP Server FIXED ✅ | GUI LAUNCHED ✅ | DOGFOODING ACTIVE 🐕

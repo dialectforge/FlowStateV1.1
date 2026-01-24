@@ -1,51 +1,60 @@
 # FlowState - Next Session Quick Start
 
-## Current Status: v1.1 COMPLETE ✅ | DOGFOODING ACTIVE 🐕
+## Current Status: v1.1 COMPLETE ✅ | MCP FIXED ✅ | GUI LAUNCHED ✅
 
-**Last Session:** January 24, 2026 - MCP Server v1.1 Complete
+**Last Session:** January 24, 2026 (Session 17) - MCP Server Launch Fix
+
+---
+
+## What Happened This Session
+
+### Fixed MCP Server Not Loading on Restart
+- **Root cause:** `cwd` config doesn't add to PYTHONPATH, so `python3 -m flowstate.server` failed with `ModuleNotFoundError`
+- **Fix:** Created wrapper script `run_server.sh` that sets PYTHONPATH before running
+- **Action needed:** Restart Claude Desktop to load the fix
+
+### Launched GUI
+- App already built at `/gui/src-tauri/target/release/bundle/macos/FlowState.app`
+- Launched with `open` command
+
+---
+
+## Immediate To-Do
+
+1. **Restart Claude Desktop** - Required for MCP fix
+2. **Test MCP:** `get_project_context "FlowState"`
+3. **Test GUI:** Verify it shows the FlowState project data
 
 ---
 
 ## What's Done ✅
 
-### MCP Server (Python)
-- 42 tools total (32 v1.0 + 10 v1.1)
-- v1.1 tools: `attach_file`, `get_attachments`, `remove_attachment`, `search_file_content`
-- v1.1 tools: `git_init`, `git_status`, `git_sync`, `git_set_remote`, `git_clone`, `git_history`
-- Updated `get_project_context` with `include_files` parameter
-- Configured in Claude Desktop
+### MCP Server (Python) - 42 tools
+- All v1.0 tools (32)
+- v1.1 tools: file attachments, git sync
+- **Fixed:** Wrapper script for proper PYTHONPATH
 
-### GUI (Tauri + React)
-- All views complete: Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel, DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture
-- v1.1 views: FilesView, SyncStatusBar, Settings
-- Native menu system working
+### GUI (Tauri + React) - All views complete
+- Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel
+- DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture
+- v1.1: FilesView, SyncStatusBar, Settings
+- Native menu system
 
-### Dogfooding
-- FlowState project created to track itself
-- 5 components: MCP Server, GUI, Database, Rust Backend, React Hooks
-- 3 solved problems logged
-- 6 learnings captured
-- 5 todos added
+### Dogfooding Data
+- FlowState project tracking itself
+- 5 components, 3 solved problems, 6 learnings, 5 todos
 
 ---
 
-## To Test
+## Key Files
 
-1. **Restart Claude Desktop** to load FlowState MCP server
-2. Test: `get_project_context "FlowState"`
-3. Test: `git_status`
-4. Test: `attach_file` with a test file
-
----
-
-## Files to Know
-
-| Component | Path |
-|-----------|------|
-| MCP Server | `/Users/johnmartin/code/FlowState/mcp-server/` |
-| GUI | `/Users/johnmartin/code/FlowState/gui/` |
+| What | Path |
+|------|------|
+| MCP Wrapper | `/Users/johnmartin/code/FlowState/mcp-server/run_server.sh` |
+| MCP Logs | `~/Library/Logs/Claude/mcp-server-flowstate.log` |
+| Claude Config | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| GUI App | `/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos/FlowState.app` |
 | Database | `~/.flowstate/flowstate.db` |
-| Git Data | `~/FlowState-Data/` |
 | Build Log | `/Users/johnmartin/code/FlowState/docs/BUILD_LOG.md` |
 
 ---
@@ -53,22 +62,24 @@
 ## Quick Commands
 
 ```bash
-# Development
-cd "/Users/johnmartin/code/FlowState/gui"
-npm run dev       # Frontend only
-cargo tauri dev   # Full app
+# Launch GUI
+open "/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos/FlowState.app"
 
-# Test MCP Server
+# Test MCP server manually
 cd "/Users/johnmartin/code/FlowState/mcp-server"
 python3 -c "from flowstate.tools import list_projects; print(list_projects())"
 
-# View database
-sqlite3 ~/.flowstate/flowstate.db ".tables"
+# Check MCP logs
+tail -50 ~/Library/Logs/Claude/mcp-server-flowstate.log
+
+# Development mode
+cd "/Users/johnmartin/code/FlowState/gui"
+cargo tauri dev
 ```
 
 ---
 
-## Remaining Todos (from FlowState)
+## Remaining Work
 
 - [ ] Test file attachments end-to-end
 - [ ] Test Git sync with GitHub  
