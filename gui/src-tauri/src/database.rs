@@ -217,6 +217,82 @@ pub struct Setting {
 }
 
 // ============================================================
+// v1.2 DATA TYPES: PROJECT KNOWLEDGE BASE
+// ============================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProjectVariable {
+    pub id: i64,
+    pub project_id: i64,
+    pub category: String,
+    pub name: String,
+    pub value: Option<String>,
+    pub is_secret: bool,
+    pub description: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProjectMethod {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub description: String,
+    pub category: Option<String>,
+    pub steps: Option<String>, // JSON array
+    pub code_example: Option<String>,
+    pub related_component_id: Option<i64>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// ============================================================
+// v1.2 DATA TYPES: CONVERSATIONS & SESSIONS (read-only views)
+// ============================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Conversation {
+    pub id: i64,
+    pub project_id: i64,
+    pub session_id: Option<String>,
+    pub user_prompt_summary: String,
+    pub assistant_response_summary: Option<String>,
+    pub key_decisions: Option<String>, // JSON array
+    pub problems_referenced: Option<String>, // JSON array
+    pub solutions_created: Option<String>, // JSON array
+    pub tokens_used: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Session {
+    pub id: i64,
+    pub project_id: i64,
+    pub started_at: String,
+    pub ended_at: Option<String>,
+    pub focus_component_id: Option<i64>,
+    pub focus_problem_id: Option<i64>,
+    pub summary: Option<String>,
+    pub outcomes: Option<String>, // JSON array
+    pub duration_minutes: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CrossReference {
+    pub id: i64,
+    pub source_project_id: i64,
+    pub source_type: String,
+    pub source_id: i64,
+    pub target_project_id: i64,
+    pub target_type: String,
+    pub target_id: i64,
+    pub relationship: String,
+    pub notes: Option<String>,
+    pub created_at: String,
+}
+
+// ============================================================
 // DATABASE
 // ============================================================
 
@@ -1688,6 +1764,355 @@ impl Database {
             "recent_changes": recent_changes,
             "attachment_count": attachment_count,
         }))
+    }
+
+    // ============================================================
+    // v1.2: PROJECT VARIABLES
+    // ============================================================
+
+    pub fn create_project_variable(
+        &self,
+        project_id: i64,
+        category: &str,
+        name: &str,
+        value: Option<&str>,
+        is_secret: bool,
+        description: Option<&str>,
+    ) -> Result<ProjectVariable> {
+        self.conn.execute(
+            "INSERT INTO project_variables (project_id, category, name, value, is_secret, description)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![project_id, category, name, value, is_secret, description],
+        )?;
+        let id = self.conn.last_insert_rowid();
+        self.get_project_variable(id)
+    }
+
+    pub fn get_project_variable(&self, id: i64) -> Result<ProjectVariable> {
+        self.conn.query_row(
+            "SELECT id, project_id, category, name, value, is_secret, description, created_at, updated_at
+             FROM project_variables WHERE id = ?",
+            params![id],
+            |row| {
+                Ok(ProjectVariable {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    category: row.get(2)?,
+                    name: row.get(3)?,
+                    value: row.get(4)?,
+                    is_secret: row.get(5)?,
+                    description: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            },
+        )
+    }
+
+    pub fn get_project_variables(&self, project_id: i64, category: Option<&str>) -> Result<Vec<ProjectVariable>> {
+        let mut variables = Vec::new();
+        
+        if let Some(cat) = category {
+            let mut stmt = self.conn.prepare(
+                "SELECT id, project_id, category, name, value, is_secret, description, created_at, updated_at
+                 FROM project_variables WHERE project_id = ? AND category = ? ORDER BY category, name"
+            )?;
+            let rows = stmt.query_map(params![project_id, cat], |row| {
+                Ok(ProjectVariable {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    category: row.get(2)?,
+                    name: row.get(3)?,
+                    value: row.get(4)?,
+                    is_secret: row.get(5)?,
+                    description: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })?;
+            for row in rows {
+                variables.push(row?);
+            }
+        } else {
+            let mut stmt = self.conn.prepare(
+                "SELECT id, project_id, category, name, value, is_secret, description, created_at, updated_at
+                 FROM project_variables WHERE project_id = ? ORDER BY category, name"
+            )?;
+            let rows = stmt.query_map(params![project_id], |row| {
+                Ok(ProjectVariable {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    category: row.get(2)?,
+                    name: row.get(3)?,
+                    value: row.get(4)?,
+                    is_secret: row.get(5)?,
+                    description: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })?;
+            for row in rows {
+                variables.push(row?);
+            }
+        }
+        
+        Ok(variables)
+    }
+
+    pub fn update_project_variable(
+        &self,
+        id: i64,
+        category: Option<&str>,
+        name: Option<&str>,
+        value: Option<&str>,
+        is_secret: Option<bool>,
+        description: Option<&str>,
+    ) -> Result<ProjectVariable> {
+        self.conn.execute(
+            "UPDATE project_variables SET 
+             category = COALESCE(?1, category),
+             name = COALESCE(?2, name),
+             value = COALESCE(?3, value),
+             is_secret = COALESCE(?4, is_secret),
+             description = COALESCE(?5, description)
+             WHERE id = ?6",
+            params![category, name, value, is_secret, description, id],
+        )?;
+        
+        self.get_project_variable(id)
+    }
+
+    pub fn delete_project_variable(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM project_variables WHERE id = ?", params![id])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // v1.2: PROJECT METHODS
+    // ============================================================
+
+    pub fn create_project_method(
+        &self,
+        project_id: i64,
+        name: &str,
+        description: &str,
+        category: Option<&str>,
+        steps: Option<&str>,
+        code_example: Option<&str>,
+        related_component_id: Option<i64>,
+    ) -> Result<ProjectMethod> {
+        self.conn.execute(
+            "INSERT INTO project_methods (project_id, name, description, category, steps, code_example, related_component_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![project_id, name, description, category, steps, code_example, related_component_id],
+        )?;
+        let id = self.conn.last_insert_rowid();
+        self.get_project_method(id)
+    }
+
+    pub fn get_project_method(&self, id: i64) -> Result<ProjectMethod> {
+        self.conn.query_row(
+            "SELECT id, project_id, name, description, category, steps, code_example, related_component_id, created_at, updated_at
+             FROM project_methods WHERE id = ?",
+            params![id],
+            |row| {
+                Ok(ProjectMethod {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    name: row.get(2)?,
+                    description: row.get(3)?,
+                    category: row.get(4)?,
+                    steps: row.get(5)?,
+                    code_example: row.get(6)?,
+                    related_component_id: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            },
+        )
+    }
+
+    pub fn get_project_methods(&self, project_id: i64, category: Option<&str>) -> Result<Vec<ProjectMethod>> {
+        let mut methods = Vec::new();
+        
+        if let Some(cat) = category {
+            let mut stmt = self.conn.prepare(
+                "SELECT id, project_id, name, description, category, steps, code_example, related_component_id, created_at, updated_at
+                 FROM project_methods WHERE project_id = ? AND category = ? ORDER BY name"
+            )?;
+            let rows = stmt.query_map(params![project_id, cat], |row| {
+                Ok(ProjectMethod {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    name: row.get(2)?,
+                    description: row.get(3)?,
+                    category: row.get(4)?,
+                    steps: row.get(5)?,
+                    code_example: row.get(6)?,
+                    related_component_id: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })?;
+            for row in rows {
+                methods.push(row?);
+            }
+        } else {
+            let mut stmt = self.conn.prepare(
+                "SELECT id, project_id, name, description, category, steps, code_example, related_component_id, created_at, updated_at
+                 FROM project_methods WHERE project_id = ? ORDER BY category, name"
+            )?;
+            let rows = stmt.query_map(params![project_id], |row| {
+                Ok(ProjectMethod {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    name: row.get(2)?,
+                    description: row.get(3)?,
+                    category: row.get(4)?,
+                    steps: row.get(5)?,
+                    code_example: row.get(6)?,
+                    related_component_id: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })?;
+            for row in rows {
+                methods.push(row?);
+            }
+        }
+        
+        Ok(methods)
+    }
+
+    pub fn update_project_method(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        description: Option<&str>,
+        category: Option<&str>,
+        steps: Option<&str>,
+        code_example: Option<&str>,
+        related_component_id: Option<i64>,
+    ) -> Result<ProjectMethod> {
+        self.conn.execute(
+            "UPDATE project_methods SET 
+             name = COALESCE(?1, name),
+             description = COALESCE(?2, description),
+             category = COALESCE(?3, category),
+             steps = COALESCE(?4, steps),
+             code_example = COALESCE(?5, code_example),
+             related_component_id = COALESCE(?6, related_component_id)
+             WHERE id = ?7",
+            params![name, description, category, steps, code_example, related_component_id, id],
+        )?;
+        
+        self.get_project_method(id)
+    }
+
+    pub fn delete_project_method(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM project_methods WHERE id = ?", params![id])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // v1.2: CONVERSATIONS (read-only)
+    // ============================================================
+
+    pub fn get_conversations(&self, project_id: i64, limit: Option<i32>) -> Result<Vec<Conversation>> {
+        let limit = limit.unwrap_or(50);
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, session_id, user_prompt_summary, assistant_response_summary,
+                    key_decisions, problems_referenced, solutions_created, tokens_used, created_at
+             FROM conversations WHERE project_id = ? ORDER BY created_at DESC LIMIT ?"
+        )?;
+        
+        let rows = stmt.query_map(params![project_id, limit], |row| {
+            Ok(Conversation {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                session_id: row.get(2)?,
+                user_prompt_summary: row.get(3)?,
+                assistant_response_summary: row.get(4)?,
+                key_decisions: row.get(5)?,
+                problems_referenced: row.get(6)?,
+                solutions_created: row.get(7)?,
+                tokens_used: row.get(8)?,
+                created_at: row.get(9)?,
+            })
+        })?;
+        
+        let mut conversations = Vec::new();
+        for row in rows {
+            conversations.push(row?);
+        }
+        Ok(conversations)
+    }
+
+    // ============================================================
+    // v1.2: SESSIONS (read-only)
+    // ============================================================
+
+    pub fn get_sessions_list(&self, project_id: i64, limit: Option<i32>) -> Result<Vec<Session>> {
+        let limit = limit.unwrap_or(50);
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, started_at, ended_at, focus_component_id, focus_problem_id,
+                    summary, outcomes, duration_minutes
+             FROM sessions WHERE project_id = ? ORDER BY started_at DESC LIMIT ?"
+        )?;
+        
+        let rows = stmt.query_map(params![project_id, limit], |row| {
+            Ok(Session {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                started_at: row.get(2)?,
+                ended_at: row.get(3)?,
+                focus_component_id: row.get(4)?,
+                focus_problem_id: row.get(5)?,
+                summary: row.get(6)?,
+                outcomes: row.get(7)?,
+                duration_minutes: row.get(8)?,
+            })
+        })?;
+        
+        let mut sessions = Vec::new();
+        for row in rows {
+            sessions.push(row?);
+        }
+        Ok(sessions)
+    }
+
+    // ============================================================
+    // v1.2: CROSS REFERENCES (read-only)
+    // ============================================================
+
+    pub fn get_cross_references(&self, project_id: i64) -> Result<Vec<CrossReference>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, source_project_id, source_type, source_id, target_project_id, target_type,
+                    target_id, relationship, notes, created_at
+             FROM cross_references WHERE source_project_id = ? OR target_project_id = ?
+             ORDER BY created_at DESC"
+        )?;
+        
+        let rows = stmt.query_map(params![project_id, project_id], |row| {
+            Ok(CrossReference {
+                id: row.get(0)?,
+                source_project_id: row.get(1)?,
+                source_type: row.get(2)?,
+                source_id: row.get(3)?,
+                target_project_id: row.get(4)?,
+                target_type: row.get(5)?,
+                target_id: row.get(6)?,
+                relationship: row.get(7)?,
+                notes: row.get(8)?,
+                created_at: row.get(9)?,
+            })
+        })?;
+        
+        let mut refs = Vec::new();
+        for row in rows {
+            refs.push(row?);
+        }
+        Ok(refs)
     }
 }
 

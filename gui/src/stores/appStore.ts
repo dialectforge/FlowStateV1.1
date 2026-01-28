@@ -105,11 +105,67 @@ export interface Session {
   focus_component_id?: number;
   focus_problem_id?: number;
   summary?: string;
+  outcomes?: string; // JSON array
   duration_minutes?: number;
 }
 
-// View types
-export type ViewType = 'dashboard' | 'tree' | 'kanban' | 'timeline' | 'decision' | 'story' | 'architecture' | 'search' | 'files';
+// v1.2: Conversations - Claude interaction history
+export interface Conversation {
+  id: number;
+  project_id: number;
+  session_id?: string;
+  user_prompt_summary: string;
+  assistant_response_summary?: string;
+  key_decisions?: string; // JSON array
+  problems_referenced?: string; // JSON array of IDs
+  solutions_created?: string; // JSON array of IDs
+  tokens_used?: number;
+  created_at: string;
+}
+
+// v1.2: Cross References - Links between items
+export interface CrossReference {
+  id: number;
+  source_project_id: number;
+  source_type: 'problem' | 'solution' | 'learning' | 'component' | 'change';
+  source_id: number;
+  target_project_id: number;
+  target_type: 'problem' | 'solution' | 'learning' | 'component' | 'change';
+  target_id: number;
+  relationship: 'similar_to' | 'derived_from' | 'contradicts' | 'depends_on' | 'supersedes' | 'related_to';
+  notes?: string;
+  created_at: string;
+}
+
+// v1.2: Project Variables - Server settings, credentials, config
+export interface ProjectVariable {
+  id: number;
+  project_id: number;
+  category: 'server' | 'credentials' | 'config' | 'environment' | 'endpoint' | 'custom';
+  name: string;
+  value?: string;
+  is_secret: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// v1.2: Project Methods - Standard approaches and patterns
+export interface ProjectMethod {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string;
+  category?: 'auth' | 'deployment' | 'testing' | 'architecture' | 'workflow' | 'convention' | 'api' | 'security' | 'other';
+  steps?: string; // JSON array
+  code_example?: string;
+  related_component_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// View types - v1.2: Added todos, conversations, sessions, knowledge, data views
+export type ViewType = 'dashboard' | 'tree' | 'kanban' | 'timeline' | 'decision' | 'story' | 'architecture' | 'search' | 'files' | 'todos' | 'conversations' | 'sessions' | 'knowledge' | 'data';
 
 // ============================================================
 // STORE STATE
@@ -150,6 +206,22 @@ interface AppState {
   
   changes: Change[];
   setChanges: (changes: Change[]) => void;
+
+  // v1.2: Additional data cache
+  sessions: Session[];
+  setSessions: (sessions: Session[]) => void;
+  
+  conversations: Conversation[];
+  setConversations: (conversations: Conversation[]) => void;
+  
+  crossReferences: CrossReference[];
+  setCrossReferences: (refs: CrossReference[]) => void;
+  
+  projectVariables: ProjectVariable[];
+  setProjectVariables: (vars: ProjectVariable[]) => void;
+  
+  projectMethods: ProjectMethod[];
+  setProjectMethods: (methods: ProjectMethod[]) => void;
 
   // Loading states
   isLoading: boolean;
@@ -227,6 +299,22 @@ export const useAppStore = create<AppState>((set) => ({
   
   changes: [],
   setChanges: (changes) => set({ changes }),
+
+  // v1.2: Additional data cache
+  sessions: [],
+  setSessions: (sessions) => set({ sessions }),
+  
+  conversations: [],
+  setConversations: (conversations) => set({ conversations }),
+  
+  crossReferences: [],
+  setCrossReferences: (refs) => set({ crossReferences: refs }),
+  
+  projectVariables: [],
+  setProjectVariables: (vars) => set({ projectVariables: vars }),
+  
+  projectMethods: [],
+  setProjectMethods: (methods) => set({ projectMethods: methods }),
 
   // Loading states
   isLoading: false,

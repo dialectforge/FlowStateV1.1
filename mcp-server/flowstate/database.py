@@ -1272,3 +1272,876 @@ class Database:
             }
         finally:
             conn.close()
+
+
+    # ========================================================
+    # v1.3 INTELLIGENCE LAYER
+    # ========================================================
+    
+    # -------------------- LEARNED SKILLS --------------------
+    
+    def learn_skill(
+        self,
+        skill_type: str,
+        skill: str,
+        context: Optional[str] = None,
+        project_id: Optional[int] = None,
+        tool_name: Optional[str] = None,
+        source_type: Optional[str] = None,
+        source_session_id: Optional[int] = None
+    ) -> dict:
+        """Record a new learned skill."""
+        conn = self._conn()
+        try:
+            cursor = conn.execute(
+                """INSERT INTO learned_skills 
+                   (skill_type, skill, context, project_id, tool_name, 
+                    source_type, source_session_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (skill_type, skill, context, project_id, tool_name,
+                 source_type, source_session_id)
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM learned_skills WHERE id = ?",
+                (cursor.lastrowid,)
+            ).fetchone()
+            return dict(row)
+        finally:
+            conn.close()
+    
+    def get_skills(
+        self,
+        project_id: Optional[int] = None,
+        skill_type: Optional[str] = None,
+        promoted_only: bool = False,
+        tool_name: Optional[str] = None,
+        min_confidence: float = 0.0
+    ) -> list[dict]:
+        """Get learned skills with optional filters."""
+        conn = self._conn()
+        try:
+            query = "SELECT * FROM learned_skills WHERE confidence >= ?"
+            params = [min_confidence]
+            
+            if project_id is not None:
+                query += " AND (project_id = ? OR project_id IS NULL)"
+                params.append(project_id)
+            
+            if skill_type:
+                query += " AND skill_type = ?"
+                params.append(skill_type)
+            
+            if promoted_only:
+                query += " AND promoted = TRUE"
+            
+            if tool_name:
+                query += " AND tool_name = ?"
+                params.append(tool_name)
+            
+            query += " ORDER BY confidence DESC, times_succeeded DESC"
+            
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+    
+    def apply_skill(self, skill_id: int, succeeded: bool) -> dict:
+        """Record that a skill was applied and whether it succeeded."""
+        conn = self._conn()
+        try:
+            if succeeded:
+                conn.execute(
+                    """UPDATE learned_skills 
+                       SET times_applied = times_applied + 1,
+                           times_succeeded = times_succeeded + 1,
+                           confidence = MIN(1.0, confidence + 0.05)
+                       WHERE id = ?""",
+                    (skill_id,)
+                )
+            else:
+                conn.execute(
+                    """UPDATE learned_skills 
+                       SET times_applied = times_applied + 1,
+                           confidence = MAX(0.1, confidence - 0.1)
+                       WHERE id = ?""",
+                    (skill_id,)
+                )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM learned_skills WHERE id = ?",
+                (skill_id,)
+            ).fetchone()
+            return dict(row)
+        finally:
+            conn.close()
+    
+    def confirm_skill(self, skill_id: int, increment_session: bool = True) -> dict:
+        """Confirm a skill worked in this session, potentially promoting it."""
+        conn = self._conn()
+        try:
+            if increment_session:
+                conn.execute(
+                    """UPDATE learned_skills 
+                       SET session_count = session_count + 1
+                       WHERE id = ?""",
+                    (skill_id,)
+                )
+            
+            # Check if skill should be promoted (3+ sessions, 0.8+ success rate)
+            row = conn.execute(
+                "SELECT * FROM learned_skills WHERE id = ?",
+                (skill_id,)
+            ).fetchone()
+            
+            if row:
+                skill = dict(row)
+                success_rate = skill['times_succeeded'] / max(1, skill['times_applied'])
+                if skill['session_count'] >= 3 and success_rate >= 0.8 and not skill['promoted']:
+                    conn.execute(
+                        """UPDATE learned_skills 
+                           SET promoted = TRUE, promoted_at = CURRENT_TIMESTAMP
+                           WHERE id = ?""",
+                        (skill_id,)
+                    )
+                    row = conn.execute(
+                        "SELECT * FROM learned_skills WHERE id = ?",
+                        (skill_id,)
+                    ).fetchone()
+            
+            conn.commit()
+            return dict(row) if row else {}
+        finally:
+            conn.close()
+    
+    def promote_skills(self, min_sessions: int = 3, min_success_rate: float = 0.8) -> list[dict]:
+        """Promote all skills that meet criteria. Returns newly promoted skills."""
+        conn = self._conn()
+        try:
+            # Find skills ready for promotion
+            rows = conn.execute(
+                """SELECT * FROM learned_skills 
+                   WHERE promoted = FALSE
+                   AND session_count >= ?
+                   AND times_applied > 0
+                   AND CAST(times_succeeded AS REAL) / times_applied >= ?""",
+                (min_sessions, min_success_rate)
+            ).fetchall()
+            
+            skill_ids = [r['id'] for r in rows]
+            
+            if skill_ids:
+                placeholders = ','.join('?' * len(skill_ids))
+                conn.execute(
+                    f"""UPDATE learned_skills 
+                       SET promoted = TRUE, promoted_at = CURRENT_TIMESTAMP
+                       WHERE id IN ({placeholders})""",
+                    skill_ids
+                )
+                conn.commit()
+                
+                rows = conn.execute(
+                    f"SELECT * FROM learned_skills WHERE id IN ({placeholders})",
+                    skill_ids
+                ).fetchall()
+            
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+    
+    # -------------------- SESSION STATE --------------------
+    
+    def save_state(
+        self,
+        project_id: int,
+        state_type: str,
+        focus_summary: Optional[str] = None,
+        active_problem_ids: Optional[list] = None,
+        active_component_ids: Optional[list] = None,
+        pending_decisions: Optional[list] = None,
+        key_facts: Optional[list] = None,
+        previous_state_id: Optional[int] = None,
+        tool_calls_this_session: int = 0,
+        estimated_tokens: Optional[int] = None
+    ) -> dict:
+        """Save Claude's session state."""
+        conn = self._conn()
+        try:
+            cursor = conn.execute(
+                """INSERT INTO session_state 
+                   (project_id, state_type, focus_summary, active_problem_ids,
+                    active_component_ids, pending_decisions, key_facts,
+                    previous_state_id, tool_calls_this_session, estimated_tokens)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (project_id, state_type, focus_summary,
+                 json.dumps(active_problem_ids) if active_problem_ids else None,
+                 json.dumps(active_component_ids) if active_component_ids else None,
+                 json.dumps(pending_decisions) if pending_decisions else None,
+                 json.dumps(key_facts) if key_facts else None,
+                 previous_state_id, tool_calls_this_session, estimated_tokens)
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM session_state WHERE id = ?",
+                (cursor.lastrowid,)
+            ).fetchone()
+            result = dict(row)
+            # Parse JSON fields
+            for field in ['active_problem_ids', 'active_component_ids', 'pending_decisions', 'key_facts']:
+                if result.get(field):
+                    result[field] = json.loads(result[field])
+            return result
+        finally:
+            conn.close()
+    
+    def get_latest_state(self, project_id: int) -> Optional[dict]:
+        """Get the most recent session state for a project."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                """SELECT * FROM session_state 
+                   WHERE project_id = ?
+                   ORDER BY created_at DESC LIMIT 1""",
+                (project_id,)
+            ).fetchone()
+            if not row:
+                return None
+            result = dict(row)
+            for field in ['active_problem_ids', 'active_component_ids', 'pending_decisions', 'key_facts']:
+                if result.get(field):
+                    result[field] = json.loads(result[field])
+            return result
+        finally:
+            conn.close()
+    
+    def get_state_chain(self, state_id: int, max_depth: int = 5) -> list[dict]:
+        """Get chain of previous states for walkback."""
+        conn = self._conn()
+        try:
+            chain = []
+            current_id = state_id
+            for _ in range(max_depth):
+                if not current_id:
+                    break
+                row = conn.execute(
+                    "SELECT * FROM session_state WHERE id = ?",
+                    (current_id,)
+                ).fetchone()
+                if not row:
+                    break
+                result = dict(row)
+                for field in ['active_problem_ids', 'active_component_ids', 'pending_decisions', 'key_facts']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                chain.append(result)
+                current_id = result.get('previous_state_id')
+            return chain
+        finally:
+            conn.close()
+    
+    def restore_state(self, state_id: int) -> Optional[dict]:
+        """Get a specific state by ID for restoration."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                "SELECT * FROM session_state WHERE id = ?",
+                (state_id,)
+            ).fetchone()
+            if not row:
+                return None
+            result = dict(row)
+            for field in ['active_problem_ids', 'active_component_ids', 'pending_decisions', 'key_facts']:
+                if result.get(field):
+                    result[field] = json.loads(result[field])
+            return result
+        finally:
+            conn.close()
+    
+    # -------------------- TOOL REGISTRY --------------------
+    
+    def register_tool(
+        self,
+        mcp_server: str,
+        tool_name: str,
+        effective_for: Optional[list] = None,
+        common_parameters: Optional[dict] = None,
+        gotchas: Optional[list] = None,
+        pairs_with: Optional[list] = None
+    ) -> dict:
+        """Register or update a tool in the registry."""
+        conn = self._conn()
+        try:
+            # Use INSERT OR REPLACE to handle updates
+            cursor = conn.execute(
+                """INSERT INTO tool_registry 
+                   (mcp_server, tool_name, effective_for, common_parameters, gotchas, pairs_with)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(mcp_server, tool_name) DO UPDATE SET
+                   effective_for = COALESCE(excluded.effective_for, tool_registry.effective_for),
+                   common_parameters = COALESCE(excluded.common_parameters, tool_registry.common_parameters),
+                   gotchas = COALESCE(excluded.gotchas, tool_registry.gotchas),
+                   pairs_with = COALESCE(excluded.pairs_with, tool_registry.pairs_with)""",
+                (mcp_server, tool_name,
+                 json.dumps(effective_for) if effective_for else None,
+                 json.dumps(common_parameters) if common_parameters else None,
+                 json.dumps(gotchas) if gotchas else None,
+                 json.dumps(pairs_with) if pairs_with else None)
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM tool_registry WHERE mcp_server = ? AND tool_name = ?",
+                (mcp_server, tool_name)
+            ).fetchone()
+            result = dict(row)
+            for field in ['effective_for', 'common_parameters', 'gotchas', 'pairs_with']:
+                if result.get(field):
+                    result[field] = json.loads(result[field])
+            return result
+        finally:
+            conn.close()
+    
+    def get_tools(
+        self,
+        mcp_server: Optional[str] = None,
+        min_success_rate: float = 0.0
+    ) -> list[dict]:
+        """Get tools from registry with optional filters."""
+        conn = self._conn()
+        try:
+            if mcp_server:
+                rows = conn.execute(
+                    """SELECT * FROM tool_registry 
+                       WHERE mcp_server = ? AND success_rate >= ?
+                       ORDER BY success_rate DESC, times_used DESC""",
+                    (mcp_server, min_success_rate)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM tool_registry 
+                       WHERE success_rate >= ?
+                       ORDER BY success_rate DESC, times_used DESC""",
+                    (min_success_rate,)
+                ).fetchall()
+            
+            results = []
+            for row in rows:
+                result = dict(row)
+                for field in ['effective_for', 'common_parameters', 'gotchas', 'pairs_with']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                results.append(result)
+            return results
+        finally:
+            conn.close()
+    
+    def update_tool_stats(self, mcp_server: str, tool_name: str, succeeded: bool) -> dict:
+        """Update usage stats for a tool."""
+        conn = self._conn()
+        try:
+            if succeeded:
+                conn.execute(
+                    """UPDATE tool_registry 
+                       SET times_used = times_used + 1,
+                           times_succeeded = times_succeeded + 1,
+                           last_used = CURRENT_TIMESTAMP
+                       WHERE mcp_server = ? AND tool_name = ?""",
+                    (mcp_server, tool_name)
+                )
+            else:
+                conn.execute(
+                    """UPDATE tool_registry 
+                       SET times_used = times_used + 1,
+                           last_used = CURRENT_TIMESTAMP
+                       WHERE mcp_server = ? AND tool_name = ?""",
+                    (mcp_server, tool_name)
+                )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM tool_registry WHERE mcp_server = ? AND tool_name = ?",
+                (mcp_server, tool_name)
+            ).fetchone()
+            if row:
+                result = dict(row)
+                for field in ['effective_for', 'common_parameters', 'gotchas', 'pairs_with']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                return result
+            return {}
+        finally:
+            conn.close()
+    
+    def get_tool_recommendation(self, task_type: str, project_id: Optional[int] = None) -> list[dict]:
+        """Get recommended tools for a task type based on past success."""
+        conn = self._conn()
+        try:
+            # Find tools that have been effective for similar tasks
+            rows = conn.execute(
+                """SELECT DISTINCT tr.* FROM tool_registry tr
+                   LEFT JOIN tool_usage tu ON tr.id = tu.tool_registry_id
+                   WHERE tr.success_rate >= 0.5
+                   AND (tu.task_type = ? OR tr.effective_for LIKE ?)
+                   ORDER BY tr.success_rate DESC, tr.times_used DESC
+                   LIMIT 5""",
+                (task_type, f'%{task_type}%')
+            ).fetchall()
+            
+            results = []
+            for row in rows:
+                result = dict(row)
+                for field in ['effective_for', 'common_parameters', 'gotchas', 'pairs_with']:
+                    if result.get(field):
+                        result[field] = json.loads(result[field])
+                results.append(result)
+            return results
+        finally:
+            conn.close()
+
+    # -------------------- TOOL USAGE --------------------
+    
+    def log_tool_use(
+        self,
+        mcp_server: str,
+        tool_name: str,
+        project_id: Optional[int] = None,
+        session_state_id: Optional[int] = None,
+        parameters: Optional[dict] = None,
+        result_size: Optional[int] = None,
+        execution_time_ms: Optional[int] = None,
+        task_type: Optional[str] = None,
+        trigger: Optional[str] = None,
+        preceding_tool_id: Optional[int] = None
+    ) -> dict:
+        """Log a tool usage."""
+        conn = self._conn()
+        try:
+            # Find tool_registry_id
+            reg_row = conn.execute(
+                "SELECT id FROM tool_registry WHERE mcp_server = ? AND tool_name = ?",
+                (mcp_server, tool_name)
+            ).fetchone()
+            tool_registry_id = reg_row['id'] if reg_row else None
+            
+            cursor = conn.execute(
+                """INSERT INTO tool_usage 
+                   (project_id, session_state_id, tool_registry_id, mcp_server, tool_name,
+                    parameters, result_size, execution_time_ms, task_type, trigger, preceding_tool_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (project_id, session_state_id, tool_registry_id, mcp_server, tool_name,
+                 json.dumps(parameters) if parameters else None,
+                 result_size, execution_time_ms, task_type, trigger, preceding_tool_id)
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM tool_usage WHERE id = ?",
+                (cursor.lastrowid,)
+            ).fetchone()
+            result = dict(row)
+            if result.get('parameters'):
+                result['parameters'] = json.loads(result['parameters'])
+            return result
+        finally:
+            conn.close()
+    
+    def rate_tool_use(self, usage_id: int, was_useful: bool, user_correction: Optional[str] = None) -> dict:
+        """Rate a tool usage as useful or not."""
+        conn = self._conn()
+        try:
+            conn.execute(
+                """UPDATE tool_usage 
+                   SET was_useful = ?, user_correction = ?
+                   WHERE id = ?""",
+                (was_useful, user_correction, usage_id)
+            )
+            
+            # Also update tool registry stats
+            row = conn.execute(
+                "SELECT mcp_server, tool_name FROM tool_usage WHERE id = ?",
+                (usage_id,)
+            ).fetchone()
+            if row:
+                self.update_tool_stats(row['mcp_server'], row['tool_name'], was_useful)
+            
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM tool_usage WHERE id = ?",
+                (usage_id,)
+            ).fetchone()
+            result = dict(row)
+            if result.get('parameters'):
+                result['parameters'] = json.loads(result['parameters'])
+            return result
+        finally:
+            conn.close()
+    
+    def get_usage_patterns(
+        self,
+        project_id: Optional[int] = None,
+        mcp_server: Optional[str] = None,
+        tool_name: Optional[str] = None,
+        limit: int = 100
+    ) -> list[dict]:
+        """Get tool usage patterns for analysis."""
+        conn = self._conn()
+        try:
+            query = "SELECT * FROM tool_usage WHERE 1=1"
+            params = []
+            
+            if project_id is not None:
+                query += " AND project_id = ?"
+                params.append(project_id)
+            
+            if mcp_server:
+                query += " AND mcp_server = ?"
+                params.append(mcp_server)
+            
+            if tool_name:
+                query += " AND tool_name = ?"
+                params.append(tool_name)
+            
+            query += f" ORDER BY created_at DESC LIMIT {limit}"
+            
+            rows = conn.execute(query, params).fetchall()
+            results = []
+            for row in rows:
+                result = dict(row)
+                if result.get('parameters'):
+                    result['parameters'] = json.loads(result['parameters'])
+                results.append(result)
+            return results
+        finally:
+            conn.close()
+    
+    # -------------------- BEHAVIOR PATTERNS --------------------
+    
+    def record_pattern(
+        self,
+        pattern_type: str,
+        pattern_name: str,
+        trigger_conditions: Optional[dict] = None,
+        actions: Optional[list] = None,
+        project_id: Optional[int] = None,
+        source: str = "learned"
+    ) -> dict:
+        """Record a new behavior pattern."""
+        conn = self._conn()
+        try:
+            cursor = conn.execute(
+                """INSERT INTO behavior_patterns 
+                   (project_id, pattern_type, pattern_name, trigger_conditions, actions, source)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (project_id, pattern_type, pattern_name,
+                 json.dumps(trigger_conditions) if trigger_conditions else None,
+                 json.dumps(actions) if actions else None,
+                 source)
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM behavior_patterns WHERE id = ?",
+                (cursor.lastrowid,)
+            ).fetchone()
+            result = dict(row)
+            if result.get('trigger_conditions'):
+                result['trigger_conditions'] = json.loads(result['trigger_conditions'])
+            if result.get('actions'):
+                result['actions'] = json.loads(result['actions'])
+            return result
+        finally:
+            conn.close()
+    
+    def get_patterns(
+        self,
+        project_id: Optional[int] = None,
+        pattern_type: Optional[str] = None,
+        promoted_only: bool = False,
+        min_confidence: float = 0.0
+    ) -> list[dict]:
+        """Get behavior patterns with optional filters."""
+        conn = self._conn()
+        try:
+            query = "SELECT * FROM behavior_patterns WHERE confidence >= ?"
+            params = [min_confidence]
+            
+            if project_id is not None:
+                query += " AND (project_id = ? OR project_id IS NULL)"
+                params.append(project_id)
+            
+            if pattern_type:
+                query += " AND pattern_type = ?"
+                params.append(pattern_type)
+            
+            if promoted_only:
+                query += " AND promoted = TRUE"
+            
+            query += " ORDER BY confidence DESC, success_rate DESC"
+            
+            rows = conn.execute(query, params).fetchall()
+            results = []
+            for row in rows:
+                result = dict(row)
+                if result.get('trigger_conditions'):
+                    result['trigger_conditions'] = json.loads(result['trigger_conditions'])
+                if result.get('actions'):
+                    result['actions'] = json.loads(result['actions'])
+                results.append(result)
+            return results
+        finally:
+            conn.close()
+    
+    def apply_pattern(self, pattern_id: int, succeeded: bool) -> dict:
+        """Record that a pattern was applied and whether it succeeded."""
+        conn = self._conn()
+        try:
+            if succeeded:
+                conn.execute(
+                    """UPDATE behavior_patterns 
+                       SET times_used = times_used + 1,
+                           times_succeeded = times_succeeded + 1,
+                           confidence = MIN(1.0, confidence + 0.05),
+                           last_used = CURRENT_TIMESTAMP
+                       WHERE id = ?""",
+                    (pattern_id,)
+                )
+            else:
+                conn.execute(
+                    """UPDATE behavior_patterns 
+                       SET times_used = times_used + 1,
+                           confidence = MAX(0.1, confidence - 0.1),
+                           last_used = CURRENT_TIMESTAMP
+                       WHERE id = ?""",
+                    (pattern_id,)
+                )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM behavior_patterns WHERE id = ?",
+                (pattern_id,)
+            ).fetchone()
+            result = dict(row)
+            if result.get('trigger_conditions'):
+                result['trigger_conditions'] = json.loads(result['trigger_conditions'])
+            if result.get('actions'):
+                result['actions'] = json.loads(result['actions'])
+            return result
+        finally:
+            conn.close()
+    
+    def confirm_pattern(self, pattern_id: int, increment_session: bool = True) -> dict:
+        """Confirm a pattern worked in this session, potentially promoting it."""
+        conn = self._conn()
+        try:
+            if increment_session:
+                conn.execute(
+                    """UPDATE behavior_patterns 
+                       SET session_count = session_count + 1
+                       WHERE id = ?""",
+                    (pattern_id,)
+                )
+            
+            # Check if pattern should be promoted
+            row = conn.execute(
+                "SELECT * FROM behavior_patterns WHERE id = ?",
+                (pattern_id,)
+            ).fetchone()
+            
+            if row:
+                pattern = dict(row)
+                if pattern['session_count'] >= 3 and pattern['success_rate'] >= 0.8 and not pattern['promoted']:
+                    conn.execute(
+                        """UPDATE behavior_patterns 
+                           SET promoted = TRUE, promoted_at = CURRENT_TIMESTAMP
+                           WHERE id = ?""",
+                        (pattern_id,)
+                    )
+                    row = conn.execute(
+                        "SELECT * FROM behavior_patterns WHERE id = ?",
+                        (pattern_id,)
+                    ).fetchone()
+            
+            conn.commit()
+            result = dict(row) if row else {}
+            if result.get('trigger_conditions'):
+                result['trigger_conditions'] = json.loads(result['trigger_conditions'])
+            if result.get('actions'):
+                result['actions'] = json.loads(result['actions'])
+            return result
+        finally:
+            conn.close()
+    
+    # -------------------- ALGORITHM METRICS --------------------
+    
+    def log_metric(
+        self,
+        metric_type: str,
+        context: Optional[str] = None,
+        action_taken: Optional[str] = None,
+        outcome: Optional[str] = None,
+        effectiveness_score: Optional[float] = None,
+        user_feedback: Optional[str] = None,
+        should_adjust: Optional[bool] = None,
+        suggested_adjustment: Optional[str] = None,
+        project_id: Optional[int] = None,
+        session_state_id: Optional[int] = None
+    ) -> dict:
+        """Log an algorithm metric."""
+        conn = self._conn()
+        try:
+            cursor = conn.execute(
+                """INSERT INTO algorithm_metrics 
+                   (project_id, session_state_id, metric_type, context, action_taken,
+                    outcome, effectiveness_score, user_feedback, should_adjust, suggested_adjustment)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (project_id, session_state_id, metric_type, context, action_taken,
+                 outcome, effectiveness_score, user_feedback, should_adjust, suggested_adjustment)
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT * FROM algorithm_metrics WHERE id = ?",
+                (cursor.lastrowid,)
+            ).fetchone()
+            return dict(row)
+        finally:
+            conn.close()
+    
+    def get_metrics(
+        self,
+        project_id: Optional[int] = None,
+        metric_type: Optional[str] = None,
+        session_state_id: Optional[int] = None,
+        limit: int = 100
+    ) -> list[dict]:
+        """Get algorithm metrics with optional filters."""
+        conn = self._conn()
+        try:
+            query = "SELECT * FROM algorithm_metrics WHERE 1=1"
+            params = []
+            
+            if project_id is not None:
+                query += " AND project_id = ?"
+                params.append(project_id)
+            
+            if metric_type:
+                query += " AND metric_type = ?"
+                params.append(metric_type)
+            
+            if session_state_id:
+                query += " AND session_state_id = ?"
+                params.append(session_state_id)
+            
+            query += f" ORDER BY created_at DESC LIMIT {limit}"
+            
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+    
+    def get_tuning_suggestions(self, project_id: Optional[int] = None) -> list[dict]:
+        """Get suggested tuning adjustments based on metrics."""
+        conn = self._conn()
+        try:
+            query = """
+                SELECT metric_type, suggested_adjustment, 
+                       COUNT(*) as occurrence_count,
+                       AVG(effectiveness_score) as avg_effectiveness
+                FROM algorithm_metrics
+                WHERE should_adjust = TRUE
+                AND suggested_adjustment IS NOT NULL
+            """
+            params = []
+            
+            if project_id is not None:
+                query += " AND project_id = ?"
+                params.append(project_id)
+            
+            query += """
+                GROUP BY metric_type, suggested_adjustment
+                HAVING COUNT(*) >= 2
+                ORDER BY occurrence_count DESC, avg_effectiveness ASC
+            """
+            
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+    
+    # -------------------- SESSION MANAGEMENT (v1.3) --------------------
+    
+    def initialize_session_v13(self, project_id: int) -> dict:
+        """
+        Initialize a v1.3 intelligent session.
+        Returns: session state, applicable skills, tool recommendations, active patterns.
+        """
+        conn = self._conn()
+        try:
+            # Get latest state for this project
+            latest_state = self.get_latest_state(project_id)
+            previous_state_id = latest_state['id'] if latest_state else None
+            
+            # Create new session state
+            state = self.save_state(
+                project_id=project_id,
+                state_type='start',
+                previous_state_id=previous_state_id
+            )
+            
+            # Get applicable skills (project-specific + global)
+            skills = self.get_skills(project_id=project_id, min_confidence=0.5)
+            
+            # Get tool recommendations
+            tools = self.get_tools(min_success_rate=0.5)
+            
+            # Get active patterns
+            patterns = self.get_patterns(project_id=project_id, min_confidence=0.5)
+            
+            # Get previous state chain for context
+            state_chain = []
+            if previous_state_id:
+                state_chain = self.get_state_chain(previous_state_id, max_depth=3)
+            
+            return {
+                "session_state": state,
+                "applicable_skills": skills,
+                "tool_recommendations": tools,
+                "active_patterns": patterns,
+                "previous_state_chain": state_chain
+            }
+        finally:
+            conn.close()
+    
+    def finalize_session_v13(
+        self,
+        session_state_id: int,
+        focus_summary: Optional[str] = None,
+        active_problem_ids: Optional[list] = None,
+        active_component_ids: Optional[list] = None,
+        pending_decisions: Optional[list] = None,
+        key_facts: Optional[list] = None,
+        tool_calls_this_session: int = 0
+    ) -> dict:
+        """
+        Finalize a v1.3 session with handoff state.
+        Creates an 'end' state that can be used to resume next session.
+        """
+        # Get the original state
+        original_state = self.restore_state(session_state_id)
+        if not original_state:
+            return {}
+        
+        # Create end/handoff state
+        end_state = self.save_state(
+            project_id=original_state['project_id'],
+            state_type='handoff',
+            focus_summary=focus_summary,
+            active_problem_ids=active_problem_ids,
+            active_component_ids=active_component_ids,
+            pending_decisions=pending_decisions,
+            key_facts=key_facts,
+            previous_state_id=session_state_id,
+            tool_calls_this_session=tool_calls_this_session
+        )
+        
+        # Promote any skills that are ready
+        promoted_skills = self.promote_skills()
+        
+        return {
+            "end_state": end_state,
+            "promoted_skills": promoted_skills
+        }

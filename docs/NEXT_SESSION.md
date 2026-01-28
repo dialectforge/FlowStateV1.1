@@ -1,92 +1,94 @@
-# FlowState - Next Session Quick Start
+# FlowState - Next Session Prompt
 
-## Current Status: v1.1 COMPLETE ✅ | MCP FIXED ✅ | GUI LAUNCHED ✅
+## Quick Context
+FlowState is a development memory system. You (Claude) are co-creator. **v1.5 VERIFIED & LIVE**.
 
-**Last Session:** January 24, 2026 (Session 17) - MCP Server Launch Fix
+## Current State: v1.5 Verified ✅
 
----
+### ✅ COMPLETED THIS SESSION (January 28, 2026)
 
-## What Happened This Session
+#### Claude Desktop Integration Verified
+- Config: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Points to: `/Users/johnmartin/code/FlowState/mcp-server/run_server.sh`
+- Runs: `flowstate.server` (v1.5 - 21 consolidated tools)
+- **All tests passed**: list_projects, todo, session, get_context working
 
-### Fixed MCP Server Not Loading on Restart
-- **Root cause:** `cwd` config doesn't add to PYTHONPATH, so `python3 -m flowstate.server` failed with `ModuleNotFoundError`
-- **Fix:** Created wrapper script `run_server.sh` that sets PYTHONPATH before running
-- **Action needed:** Restart Claude Desktop to load the fix
+#### Bug Fix: log_learning argument order
+- **Problem**: server.py handler passed args in wrong order (component_id before category)
+- **Fix**: Corrected order to match tools.py signature: `project_id, insight, category, context, component_id, source`
 
-### Launched GUI
-- App already built at `/gui/src-tauri/target/release/bundle/macos/FlowState.app`
-- Launched with `open` command
+### Tool Consolidation Recap (v1.5)
+**Problem:** 79 tools made FlowState unusable alongside other MCPs (context overflow).
+**Solution:** Consolidated to 21 tools using action-based routing.
+**Result:** 79 → 21 tools (74% reduction!)
 
----
+## Tool Count: 21
 
-## Immediate To-Do
+**Core (12 unchanged):**
+1. list_projects
+2. create_project
+3. update_project
+4. get_context (lean param replaces 2 tools)
+5. create_component
+6. list_components
+7. update_component
+8. log_learning
+9. get_learnings
+10. log_change
+11. get_recent_changes
+12. search
 
-1. **Restart Claude Desktop** - Required for MCP fix
-2. **Test MCP:** `get_project_context "FlowState"`
-3. **Test GUI:** Verify it shows the FlowState project data
+**Consolidated (9 action-based):**
+13. problem (log/list/solve/get_tree)
+14. attempt (log/outcome)
+15. todo (add/update/list)
+16. session (start/end/current/log_conversation/list_*)
+17. file (attach/list/remove/search)
+18. git (init/status/sync/set_remote/clone/history)
+19. variable (create/list/update/delete)
+20. method (create/list/update/delete)
+21. self_improve (learn_skill/get_skills/confirm_skill/save_state/get_state/log_metric/get_metrics)
 
----
+## Usage Examples
 
-## What's Done ✅
+```python
+# Session start
+flowstate:get_context project_name="FlowState" lean=True
 
-### MCP Server (Python) - 42 tools
-- All v1.0 tools (32)
-- v1.1 tools: file attachments, git sync
-- **Fixed:** Wrapper script for proper PYTHONPATH
+# Log a problem
+flowstate:problem action="log" project_id=1 title="Bug found" severity="high"
 
-### GUI (Tauri + React) - All views complete
-- Dashboard, TreeView, KanbanBoard, Timeline, SearchPanel
-- DecisionTree, StoryMode, ArchitectureDiagram, QuickCapture
-- v1.1: FilesView, SyncStatusBar, Settings
-- Native menu system
+# Add a todo
+flowstate:todo action="add" project_id=1 title="Fix login" priority="high"
 
-### Dogfooding Data
-- FlowState project tracking itself
-- 5 components, 3 solved problems, 6 learnings, 5 todos
+# Log a learning
+flowstate:log_learning project_id=1 insight="Always verify MCP after updates" category="best_practice"
 
----
-
-## Key Files
-
-| What | Path |
-|------|------|
-| MCP Wrapper | `/Users/johnmartin/code/FlowState/mcp-server/run_server.sh` |
-| MCP Logs | `~/Library/Logs/Claude/mcp-server-flowstate.log` |
-| Claude Config | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| GUI App | `/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos/FlowState.app` |
-| Database | `~/.flowstate/flowstate.db` |
-| Build Log | `/Users/johnmartin/code/FlowState/docs/BUILD_LOG.md` |
-
----
-
-## Quick Commands
-
-```bash
-# Launch GUI
-open "/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos/FlowState.app"
-
-# Test MCP server manually
-cd "/Users/johnmartin/code/FlowState/mcp-server"
-python3 -c "from flowstate.tools import list_projects; print(list_projects())"
-
-# Check MCP logs
-tail -50 ~/Library/Logs/Claude/mcp-server-flowstate.log
-
-# Development mode
-cd "/Users/johnmartin/code/FlowState/gui"
-cargo tauri dev
+# Git sync
+flowstate:git action="sync" commit_message="Session checkpoint"
 ```
 
+## Key Files
+- `mcp-server/flowstate/server.py` - v1.5 (21 tools) ✅ LIVE
+- `mcp-server/flowstate/server_v14.py` - Backup of v1.4 (79 tools)
+- `mcp-server/flowstate/tools.py` - Implementations
+- `docs/TOOL_CONSOLIDATION.md` - Consolidation map
+
+## Pending Todos (8)
+1. Pre-Launch Audit: Code/Schema Parity Check
+2. Implement device activation system + per-server IP subnets
+3. Fix drag
+4. Test file attachments end-to-end
+5. Test Git sync with GitHub
+6. Add AI description generation (Claude API)
+7. Implement file content extraction
+8. Write user documentation
+
+## Next Steps
+1. **Restart Claude Desktop** to pick up the log_learning bug fix
+2. **Dogfood**: Use FlowState to track ongoing development
+3. **Pre-Launch Audit**: Work through technical debt checklist
+
 ---
-
-## Remaining Work
-
-- [ ] Test file attachments end-to-end
-- [ ] Test Git sync with GitHub  
-- [ ] Add AI description generation (Claude API)
-- [ ] Implement file content extraction
-- [ ] Write user documentation
-
----
-
-**Context flows. Memory persists. FlowState remembers.** 🧠
+*Updated: January 28, 2026*
+*Status: v1.5 verified live, log_learning bug fixed*

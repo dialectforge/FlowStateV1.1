@@ -1261,6 +1261,175 @@ fn log_sync_operation(
 }
 
 // ============================================================
+// v1.2: PROJECT VARIABLES COMMANDS
+// ============================================================
+
+#[tauri::command]
+fn create_project_variable(
+    state: State<AppState>,
+    project_id: i64,
+    category: String,
+    name: String,
+    value: Option<String>,
+    is_secret: Option<bool>,
+    description: Option<String>,
+) -> Result<database::ProjectVariable, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.create_project_variable(
+        project_id,
+        &category,
+        &name,
+        value.as_deref(),
+        is_secret.unwrap_or(false),
+        description.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_project_variables(
+    state: State<AppState>,
+    project_id: i64,
+    category: Option<String>,
+) -> Result<Vec<database::ProjectVariable>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_project_variables(project_id, category.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_project_variable(
+    state: State<AppState>,
+    id: i64,
+    category: Option<String>,
+    name: Option<String>,
+    value: Option<String>,
+    is_secret: Option<bool>,
+    description: Option<String>,
+) -> Result<database::ProjectVariable, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.update_project_variable(
+        id,
+        category.as_deref(),
+        name.as_deref(),
+        value.as_deref(),
+        is_secret,
+        description.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_project_variable(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_project_variable(id).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// v1.2: PROJECT METHODS COMMANDS
+// ============================================================
+
+#[tauri::command]
+fn create_project_method(
+    state: State<AppState>,
+    project_id: i64,
+    name: String,
+    description: String,
+    category: Option<String>,
+    steps: Option<String>,
+    code_example: Option<String>,
+    related_component_id: Option<i64>,
+) -> Result<database::ProjectMethod, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.create_project_method(
+        project_id,
+        &name,
+        &description,
+        category.as_deref(),
+        steps.as_deref(),
+        code_example.as_deref(),
+        related_component_id,
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_project_methods(
+    state: State<AppState>,
+    project_id: i64,
+    category: Option<String>,
+) -> Result<Vec<database::ProjectMethod>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_project_methods(project_id, category.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_project_method(
+    state: State<AppState>,
+    id: i64,
+    name: Option<String>,
+    description: Option<String>,
+    category: Option<String>,
+    steps: Option<String>,
+    code_example: Option<String>,
+    related_component_id: Option<i64>,
+) -> Result<database::ProjectMethod, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.update_project_method(
+        id,
+        name.as_deref(),
+        description.as_deref(),
+        category.as_deref(),
+        steps.as_deref(),
+        code_example.as_deref(),
+        related_component_id,
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_project_method(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_project_method(id).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// v1.2: CONVERSATIONS COMMANDS (read-only)
+// ============================================================
+
+#[tauri::command]
+fn get_conversations(
+    state: State<AppState>,
+    project_id: i64,
+    limit: Option<i32>,
+) -> Result<Vec<database::Conversation>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_conversations(project_id, limit).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// v1.2: SESSIONS COMMANDS (read-only)
+// ============================================================
+
+#[tauri::command]
+fn get_sessions_list(
+    state: State<AppState>,
+    project_id: i64,
+    limit: Option<i32>,
+) -> Result<Vec<database::Session>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_sessions_list(project_id, limit).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// v1.2: CROSS REFERENCES COMMANDS (read-only)
+// ============================================================
+
+#[tauri::command]
+fn get_cross_references(
+    state: State<AppState>,
+    project_id: i64,
+) -> Result<Vec<database::CrossReference>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_cross_references(project_id).map_err(|e| e.to_string())
+}
+
+// ============================================================
 // FILE EXPORT
 // ============================================================
 
@@ -1371,14 +1540,26 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
         .item(&MenuItemBuilder::with_id("quick_capture", "Quick Capture").accelerator("CmdOrCtrl+Shift+M").build(app)?)
         .build()?;
     
-    // Build View menu (v1.1 updated)
+    // Build View menu (v1.2 updated with new views)
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&MenuItemBuilder::with_id("view_dashboard", "Dashboard").accelerator("CmdOrCtrl+1").build(app)?)
         .item(&MenuItemBuilder::with_id("view_timeline", "Timeline").accelerator("CmdOrCtrl+2").build(app)?)
         .item(&MenuItemBuilder::with_id("view_kanban", "Kanban Board").accelerator("CmdOrCtrl+3").build(app)?)
         .item(&MenuItemBuilder::with_id("view_decision", "Decision Trees").accelerator("CmdOrCtrl+4").build(app)?)
-        .separator()
         .item(&MenuItemBuilder::with_id("view_files", "Files & Attachments").accelerator("CmdOrCtrl+5").build(app)?)
+        .separator()
+        // v1.2: Additional views
+        .item(&MenuItemBuilder::with_id("view_tree", "Tree View").accelerator("CmdOrCtrl+6").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_story", "Story Mode").accelerator("CmdOrCtrl+7").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_architecture", "Architecture Diagram").accelerator("CmdOrCtrl+8").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_search", "Search").build(app)?)
+        .separator()
+        // v1.2: New data views
+        .item(&MenuItemBuilder::with_id("view_todos", "Todo Board").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_conversations", "Conversations").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_sessions", "Sessions").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_knowledge", "Knowledge").build(app)?)
+        .item(&MenuItemBuilder::with_id("view_data", "Data Browser").build(app)?)
         .separator()
         .item(&MenuItemBuilder::with_id("toggle_sidebar", "Toggle Sidebar").accelerator("CmdOrCtrl+\\").build(app)?)
         .item(&MenuItemBuilder::with_id("toggle_ai_panel", "Toggle AI Panel").accelerator("CmdOrCtrl+Shift+A").build(app)?)
@@ -1508,12 +1689,22 @@ pub fn run() {
                     "find_in_files" => { let _ = window.emit("menu-event", "find_in_files"); }
                     "quick_capture" => { let _ = window.emit("menu-event", "quick_capture"); }
                     
-                    // View menu
+                    // View menu (v1.2 updated)
                     "view_dashboard" => { let _ = window.emit("menu-event", "view_dashboard"); }
                     "view_timeline" => { let _ = window.emit("menu-event", "view_timeline"); }
                     "view_kanban" => { let _ = window.emit("menu-event", "view_kanban"); }
                     "view_decision" => { let _ = window.emit("menu-event", "view_decision"); }
                     "view_files" => { let _ = window.emit("menu-event", "view_files"); }
+                    "view_tree" => { let _ = window.emit("menu-event", "view_tree"); }
+                    "view_story" => { let _ = window.emit("menu-event", "view_story"); }
+                    "view_architecture" => { let _ = window.emit("menu-event", "view_architecture"); }
+                    "view_search" => { let _ = window.emit("menu-event", "view_search"); }
+                    // v1.2: New data views
+                    "view_todos" => { let _ = window.emit("menu-event", "view_todos"); }
+                    "view_conversations" => { let _ = window.emit("menu-event", "view_conversations"); }
+                    "view_sessions" => { let _ = window.emit("menu-event", "view_sessions"); }
+                    "view_knowledge" => { let _ = window.emit("menu-event", "view_knowledge"); }
+                    "view_data" => { let _ = window.emit("menu-event", "view_data"); }
                     "toggle_sidebar" => { let _ = window.emit("menu-event", "toggle_sidebar"); }
                     "toggle_ai_panel" => { let _ = window.emit("menu-event", "toggle_ai_panel"); }
                     
@@ -1637,6 +1828,20 @@ pub fn run() {
             log_sync_operation,
             // v1.1: File export
             write_text_file,
+            // v1.2: Project Variables commands
+            create_project_variable,
+            get_project_variables,
+            update_project_variable,
+            delete_project_variable,
+            // v1.2: Project Methods commands
+            create_project_method,
+            get_project_methods,
+            update_project_method,
+            delete_project_method,
+            // v1.2: Conversations/Sessions/CrossRefs (read-only)
+            get_conversations,
+            get_sessions_list,
+            get_cross_references,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

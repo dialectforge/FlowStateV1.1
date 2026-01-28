@@ -5,7 +5,7 @@ import subprocess
 import shutil
 import hashlib
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 from .database import Database
 from .models import ProjectContext
@@ -13,6 +13,53 @@ from .models import ProjectContext
 
 # Global database instance (initialized by server)
 _db: Optional[Database] = None
+
+
+# ============================================================
+# LEAN RESPONSE UTILITIES (v1.4)
+# ============================================================
+
+def _compact_dict(d: dict, max_text_len: int = 100) -> dict:
+    """
+    Create a compact version of a dict:
+    - Remove None values
+    - Remove empty strings/lists
+    - Truncate long text fields
+    - Remove timestamp fields unless essential
+    """
+    if not isinstance(d, dict):
+        return d
+    
+    result = {}
+    skip_fields = {'created_at', 'updated_at', 'solved_at', 'completed_at', 
+                   'promoted_at', 'last_used', 'started_at', 'ended_at'}
+    truncate_fields = {'description', 'insight', 'context', 'reason', 
+                       'notes', 'summary', 'code_snippet', 'key_insight',
+                       'old_value', 'new_value', 'skill', 'focus_summary'}
+    
+    for k, v in d.items():
+        # Skip None and empty values
+        if v is None or v == '' or v == []:
+            continue
+        # Skip timestamp fields
+        if k in skip_fields:
+            continue
+        # Truncate long text
+        if k in truncate_fields and isinstance(v, str) and len(v) > max_text_len:
+            result[k] = v[:max_text_len] + '...'
+        elif isinstance(v, dict):
+            result[k] = _compact_dict(v, max_text_len)
+        elif isinstance(v, list) and v and isinstance(v[0], dict):
+            result[k] = [_compact_dict(item, max_text_len) for item in v]
+        else:
+            result[k] = v
+    
+    return result
+
+
+def _compact_list(items: list, max_text_len: int = 100) -> list:
+    """Compact a list of dicts."""
+    return [_compact_dict(item, max_text_len) for item in items]
 
 
 def get_db() -> Database:
@@ -160,6 +207,479 @@ def get_project_context(project_name: str, hours: int = 48, include_files: bool 
 
 
 # ============================================================
+# v1.2 ADDITIONS: PROJECT KNOWLEDGE BASE
+# ============================================================
+
+def create_project_variable(
+    project_id: int,
+    name: str,
+    value: Optional[str] = None,
+    category: str = 'custom',
+    is_secret: bool = False,
+    description: Optional[str] = None
+) -> dict:
+    """
+    Create a project variable (key-value for servers, credentials, config).
+    
+    Args:
+        project_id: The project ID
+        name: Variable name (e.g., 'production_server_ip')
+        value: The value (will be masked in UI if is_secret=True)
+        category: 'server', 'credentials', 'config', 'environment', 'endpoint', 'custom'
+        is_secret: If True, value is masked in UI
+        description: Optional description
+    
+    Returns:
+        The created variable
+    """
+    db = get_db()
+    conn = db._conn()
+    try:
+        cursor = conn.execute(
+            """INSERT INTO project_variables 
+               (project_id, name, value, category, is_secret, description)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (project_id, name, value, category, is_secret, description)
+        )
+        conn.commit()
+        var = conn.execute(
+            "SELECT * FROM project_variables WHERE id = ?",
+            (cursor.lastrowid,)
+        ).fetchone()
+        return dict(var)
+    finally:
+        conn.close()
+
+
+def get_project_variables(
+    project_id: int,
+    category: Optional[str] = None
+) -> list[dict]:
+    """
+    Get all variables for a project.
+    
+    Args:
+        project_id: The project ID
+        category: Optional filter by category
+    
+    Returns:
+        List of variables
+    """
+    db = get_db()
+    conn = db._conn()
+    try:
+        if category:
+            rows = conn.execute(
+                "SELECT * FROM project_variables WHERE project_id = ? AND category = ? ORDER BY category, name",
+                (project_id, category)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM project_variables WHERE project_id = ? ORDER BY category, name",
+                (project_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def update_project_variable(
+    variable_id: int,
+    name: Optional[str] = None,
+    value: Optional[str] = None,
+    category: Optional[str] = None,
+    is_secret: Optional[bool] = None,
+    description: Optional[str] = None
+) -> Optional[dict]:
+    """
+    Update a project variable.
+    
+    Args:
+        variable_id: The variable ID
+        name: New name (optional)
+        value: New value (optional)
+        category: New category (optional)
+        is_secret: New secret flag (optional)
+        description: New description (optional)
+    
+    Returns:
+        Updated variable or None if not found
+    """
+    db = get_db()
+    conn = db._conn()
+    try:
+        updates = []
+        params = []
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if value is not None:
+            updates.append("value = ?")
+            params.append(value)
+        if category is not None:
+            updates.append("category = ?")
+            params.append(category)
+        if is_secret is not None:
+            updates.append("is_secret = ?")
+            params.append(is_secret)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        
+        if not updates:
+            return None
+        
+        params.append(variable_id)
+        conn.execute(
+            f"UPDATE project_variables SET {', '.join(updates)} WHERE id = ?",
+            params
+        )
+        conn.commit()
+        
+        var = conn.execute(
+            "SELECT * FROM project_variables WHERE id = ?",
+            (variable_id,)
+        ).fetchone()
+        return dict(var) if var else None
+    finally:
+        conn.close()
+
+
+def delete_project_variable(variable_id: int) -> bool:
+    """
+    Delete a project variable.
+    
+    Args:
+        variable_id: The variable ID
+    
+    Returns:
+        True if deleted, False if not found
+    """
+    db = get_db()
+    conn = db._conn()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM project_variables WHERE id = ?",
+            (variable_id,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def create_project_method(
+    project_id: int,
+    name: str,
+    description: str,
+    category: Optional[str] = None,
+    steps: Optional[list[str]] = None,
+    code_example: Optional[str] = None,
+    related_component_id: Optional[int] = None
+) -> dict:
+    """
+    Create a project method (standard approach, pattern, or process).
+    
+    Args:
+        project_id: The project ID
+        name: Method name (e.g., 'Authentication Flow')
+        description: Full description
+        category: 'auth', 'deployment', 'testing', 'architecture', 'workflow', 'convention', 'api', 'security', 'other'
+        steps: Optional list of steps if it's a process
+        code_example: Optional code snippet
+        related_component_id: Optional related component
+    
+    Returns:
+        The created method
+    """
+    import json
+    db = get_db()
+    conn = db._conn()
+    try:
+        steps_json = json.dumps(steps) if steps else None
+        cursor = conn.execute(
+            """INSERT INTO project_methods 
+               (project_id, name, description, category, steps, code_example, related_component_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (project_id, name, description, category, steps_json, code_example, related_component_id)
+        )
+        conn.commit()
+        method = conn.execute(
+            "SELECT * FROM project_methods WHERE id = ?",
+            (cursor.lastrowid,)
+        ).fetchone()
+        result = dict(method)
+        if result.get('steps'):
+            result['steps'] = json.loads(result['steps'])
+        return result
+    finally:
+        conn.close()
+
+
+def get_project_methods(
+    project_id: int,
+    category: Optional[str] = None
+) -> list[dict]:
+    """
+    Get all methods for a project.
+    
+    Args:
+        project_id: The project ID
+        category: Optional filter by category
+    
+    Returns:
+        List of methods
+    """
+    import json
+    db = get_db()
+    conn = db._conn()
+    try:
+        if category:
+            rows = conn.execute(
+                "SELECT * FROM project_methods WHERE project_id = ? AND category = ? ORDER BY category, name",
+                (project_id, category)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM project_methods WHERE project_id = ? ORDER BY category, name",
+                (project_id,)
+            ).fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            if d.get('steps'):
+                d['steps'] = json.loads(d['steps'])
+            results.append(d)
+        return results
+    finally:
+        conn.close()
+
+
+def update_project_method(
+    method_id: int,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    category: Optional[str] = None,
+    steps: Optional[list[str]] = None,
+    code_example: Optional[str] = None,
+    related_component_id: Optional[int] = None
+) -> Optional[dict]:
+    """
+    Update a project method.
+    
+    Args:
+        method_id: The method ID
+        name: New name (optional)
+        description: New description (optional)
+        category: New category (optional)
+        steps: New steps list (optional)
+        code_example: New code example (optional)
+        related_component_id: New related component (optional)
+    
+    Returns:
+        Updated method or None if not found
+    """
+    import json
+    db = get_db()
+    conn = db._conn()
+    try:
+        updates = []
+        params = []
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        if category is not None:
+            updates.append("category = ?")
+            params.append(category)
+        if steps is not None:
+            updates.append("steps = ?")
+            params.append(json.dumps(steps))
+        if code_example is not None:
+            updates.append("code_example = ?")
+            params.append(code_example)
+        if related_component_id is not None:
+            updates.append("related_component_id = ?")
+            params.append(related_component_id)
+        
+        if not updates:
+            return None
+        
+        params.append(method_id)
+        conn.execute(
+            f"UPDATE project_methods SET {', '.join(updates)} WHERE id = ?",
+            params
+        )
+        conn.commit()
+        
+        method = conn.execute(
+            "SELECT * FROM project_methods WHERE id = ?",
+            (method_id,)
+        ).fetchone()
+        if method:
+            result = dict(method)
+            if result.get('steps'):
+                result['steps'] = json.loads(result['steps'])
+            return result
+        return None
+    finally:
+        conn.close()
+
+
+def delete_project_method(method_id: int) -> bool:
+    """
+    Delete a project method.
+    
+    Args:
+        method_id: The method ID
+    
+    Returns:
+        True if deleted, False if not found
+    """
+    db = get_db()
+    conn = db._conn()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM project_methods WHERE id = ?",
+            (method_id,)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+# ============================================================
+# v1.2 ADDITIONS: CONVERSATIONS & SESSIONS UI SUPPORT
+# ============================================================
+
+def get_conversations(
+    project_id: int,
+    session_id: Optional[str] = None,
+    limit: int = 50
+) -> list[dict]:
+    """
+    Get conversations for a project.
+    
+    Args:
+        project_id: The project ID
+        session_id: Optional filter by session
+        limit: Max results (default 50)
+    
+    Returns:
+        List of conversations
+    """
+    import json
+    db = get_db()
+    conn = db._conn()
+    try:
+        if session_id:
+            rows = conn.execute(
+                """SELECT * FROM conversations 
+                   WHERE project_id = ? AND session_id = ? 
+                   ORDER BY created_at DESC LIMIT ?""",
+                (project_id, session_id, limit)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM conversations 
+                   WHERE project_id = ? 
+                   ORDER BY created_at DESC LIMIT ?""",
+                (project_id, limit)
+            ).fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            if d.get('key_decisions'):
+                try:
+                    d['key_decisions'] = json.loads(d['key_decisions'])
+                except:
+                    pass
+            results.append(d)
+        return results
+    finally:
+        conn.close()
+
+
+def get_sessions(
+    project_id: int,
+    limit: int = 50
+) -> list[dict]:
+    """
+    Get work sessions for a project.
+    
+    Args:
+        project_id: The project ID
+        limit: Max results (default 50)
+    
+    Returns:
+        List of sessions
+    """
+    import json
+    db = get_db()
+    conn = db._conn()
+    try:
+        rows = conn.execute(
+            """SELECT * FROM sessions 
+               WHERE project_id = ? 
+               ORDER BY started_at DESC LIMIT ?""",
+            (project_id, limit)
+        ).fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            if d.get('outcomes'):
+                try:
+                    d['outcomes'] = json.loads(d['outcomes'])
+                except:
+                    pass
+            results.append(d)
+        return results
+    finally:
+        conn.close()
+
+
+def get_cross_references(
+    project_id: Optional[int] = None,
+    source_type: Optional[str] = None,
+    source_id: Optional[int] = None
+) -> list[dict]:
+    """
+    Get cross-references (links between items).
+    
+    Args:
+        project_id: Optional filter by project
+        source_type: Optional filter by source type ('problem', 'solution', etc.)
+        source_id: Optional filter by specific source item
+    
+    Returns:
+        List of cross-references
+    """
+    db = get_db()
+    conn = db._conn()
+    try:
+        query = "SELECT * FROM cross_references WHERE 1=1"
+        params = []
+        if project_id:
+            query += " AND (source_project_id = ? OR target_project_id = ?)"
+            params.extend([project_id, project_id])
+        if source_type:
+            query += " AND source_type = ?"
+            params.append(source_type)
+        if source_id:
+            query += " AND source_id = ?"
+            params.append(source_id)
+        query += " ORDER BY created_at DESC"
+        
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ============================================================
 # COMPONENT TOOLS
 # ============================================================
 
@@ -265,7 +785,8 @@ def log_change(
 def get_recent_changes(
     project_id: Optional[int] = None,
     component_id: Optional[int] = None,
-    hours: int = 24
+    hours: int = 24,
+    compact: bool = False
 ) -> list[dict]:
     """
     Get recent changes.
@@ -274,13 +795,15 @@ def get_recent_changes(
         project_id: Filter by project (optional)
         component_id: Filter by component (optional)
         hours: How far back to look (default 24)
+        compact: Return minimal fields to save tokens (default False)
     
     Returns:
         List of recent changes
     """
     db = get_db()
     changes = db.get_recent_changes(project_id, component_id, hours)
-    return [c.model_dump() for c in changes]
+    result = [c.model_dump() for c in changes]
+    return _compact_list(result) if compact else result
 
 
 # ============================================================
@@ -319,7 +842,8 @@ def log_problem(
 
 def get_open_problems(
     project_id: Optional[int] = None,
-    component_id: Optional[int] = None
+    component_id: Optional[int] = None,
+    compact: bool = False
 ) -> list[dict]:
     """
     Get all open/investigating problems.
@@ -327,13 +851,15 @@ def get_open_problems(
     Args:
         project_id: Filter by project (optional)
         component_id: Filter by component (optional)
+        compact: Return minimal fields to save tokens (default False)
     
     Returns:
         List of open problems
     """
     db = get_db()
     problems = db.get_open_problems(project_id, component_id)
-    return [p.model_dump() for p in problems]
+    result = [p.model_dump() for p in problems]
+    return _compact_list(result) if compact else result
 
 
 def log_attempt(
@@ -497,7 +1023,8 @@ def update_todo(
 def get_todos(
     project_id: int,
     status: Optional[str] = None,
-    priority: Optional[str] = None
+    priority: Optional[str] = None,
+    compact: bool = False
 ) -> list[dict]:
     """
     Get todos with optional filters.
@@ -506,13 +1033,15 @@ def get_todos(
         project_id: The project ID
         status: Filter by status (optional)
         priority: Filter by priority (optional)
+        compact: Return minimal fields to save tokens (default False)
     
     Returns:
         List of todos
     """
     db = get_db()
     todos = db.get_todos(project_id, status, priority)
-    return [t.model_dump() for t in todos]
+    result = [t.model_dump() for t in todos]
+    return _compact_list(result) if compact else result
 
 
 # ============================================================
@@ -554,7 +1083,8 @@ def log_learning(
 def get_learnings(
     project_id: Optional[int] = None,
     category: Optional[str] = None,
-    verified_only: bool = False
+    verified_only: bool = False,
+    compact: bool = False
 ) -> list[dict]:
     """
     Get learnings with optional filters.
@@ -563,13 +1093,15 @@ def get_learnings(
         project_id: Filter by project (optional)
         category: Filter by category (optional)
         verified_only: Only return verified learnings
+        compact: Return minimal fields to save tokens (default False)
     
     Returns:
         List of learnings
     """
     db = get_db()
     learnings = db.get_learnings(project_id, category, verified_only)
-    return [l.model_dump() for l in learnings]
+    result = [l.model_dump() for l in learnings]
+    return _compact_list(result) if compact else result
 
 
 # ============================================================
@@ -1499,3 +2031,736 @@ def get_project_context_v11(
             conn.close()
     
     return result
+
+
+def get_project_context_lean(
+    project_name: str,
+    hours: int = 48
+) -> Optional[dict]:
+    """
+    LEAN VERSION: Get project context with minimal token footprint.
+    
+    Returns summary stats instead of full objects. Use this at session start
+    to avoid context overflow. Call specific tools (get_open_problems, etc.)
+    only when you need full details.
+    
+    Args:
+        project_name: Name of the project
+        hours: How many hours back for changes (default 48)
+    
+    Returns:
+        Compact context with:
+        - project: id, name, status only
+        - stats: counts of components, problems, todos, etc.
+        - recent_focus: last problem/component worked on
+        - blocking: any critical/high priority open items
+        - quick_todos: up to 3 pending todo titles
+    """
+    db = get_db()
+    ctx = db.get_project_context(project_name, hours)
+    if ctx is None:
+        return None
+    
+    # Build lean response
+    project = ctx.project
+    
+    # Get blocking items (high/critical open problems)
+    blocking = [
+        {"id": p.id, "title": p.title[:60]}
+        for p in ctx.open_problems 
+        if p.severity in ('critical', 'high')
+    ][:3]
+    
+    # Get top 3 pending todos (title only)
+    quick_todos = [
+        t.title[:50] for t in ctx.high_priority_todos[:3]
+    ]
+    
+    # Get recent focus from changes
+    recent_focus = None
+    if ctx.recent_changes:
+        last_change = ctx.recent_changes[0]
+        recent_focus = f"Component {last_change.component_id}: {last_change.field_name}"
+    
+    return {
+        "project": {
+            "id": project.id,
+            "name": project.name,
+            "status": project.status
+        },
+        "stats": {
+            "components": len(ctx.components),
+            "open_problems": len(ctx.open_problems),
+            "pending_todos": len(ctx.high_priority_todos),
+            "recent_changes": len(ctx.recent_changes),
+            "learnings": len(ctx.recent_learnings)
+        },
+        "blocking": blocking,
+        "quick_todos": quick_todos,
+        "recent_focus": recent_focus,
+        "has_active_session": ctx.current_session is not None
+    }
+
+
+# ============================================================
+# v1.3 INTELLIGENCE LAYER TOOLS
+# ============================================================
+
+# -------------------- LEARNED SKILLS --------------------
+
+def learn_skill(
+    skill_type: str,
+    skill: str,
+    context: str = None,
+    project_id: int = None,
+    tool_name: str = None,
+    source_type: str = None,
+    source_session_id: int = None
+) -> dict:
+    """
+    Record a new learned skill.
+    
+    Skills are behaviors or approaches that Claude learns work well.
+    They can be tool-specific, project-specific, or general.
+    
+    Args:
+        skill_type: Type of skill - 'tool_capability', 'user_preference', 
+                   'approach', 'gotcha', 'project_specific'
+        skill: The skill description (what was learned)
+        context: When/where this skill applies
+        project_id: Project this skill relates to (None for global)
+        tool_name: Tool this skill relates to (if tool-specific)
+        source_type: How it was learned - 'default', 'learned', 'user_defined'
+        source_session_id: Session where this was learned
+    
+    Returns:
+        The created skill record
+    """
+    db = get_db()
+    return db.learn_skill(
+        skill_type=skill_type,
+        skill=skill,
+        context=context,
+        project_id=project_id,
+        tool_name=tool_name,
+        source_type=source_type,
+        source_session_id=source_session_id
+    )
+
+
+def get_skills(
+    project_id: int = None,
+    skill_type: str = None,
+    promoted_only: bool = False,
+    tool_name: str = None,
+    min_confidence: float = 0.0
+) -> list[dict]:
+    """
+    Get learned skills with optional filters.
+    
+    Args:
+        project_id: Filter to project-specific + global skills
+        skill_type: Filter by type
+        promoted_only: Only return promoted (proven) skills
+        tool_name: Filter by tool
+        min_confidence: Minimum confidence threshold
+    
+    Returns:
+        List of skill records
+    """
+    db = get_db()
+    return db.get_skills(
+        project_id=project_id,
+        skill_type=skill_type,
+        promoted_only=promoted_only,
+        tool_name=tool_name,
+        min_confidence=min_confidence
+    )
+
+
+def apply_skill(skill_id: int, succeeded: bool) -> dict:
+    """
+    Record that a skill was applied and whether it succeeded.
+    
+    Updates the skill's confidence score based on outcome.
+    
+    Args:
+        skill_id: ID of the skill that was applied
+        succeeded: Whether applying the skill led to success
+    
+    Returns:
+        Updated skill record
+    """
+    db = get_db()
+    return db.apply_skill(skill_id, succeeded)
+
+
+def confirm_skill(skill_id: int, increment_session: bool = True) -> dict:
+    """
+    Confirm a skill worked in this session, potentially promoting it.
+    
+    Skills are promoted when they work across 3+ sessions with 80%+ success.
+    
+    Args:
+        skill_id: ID of the skill to confirm
+        increment_session: Whether to count this as a new session for the skill
+    
+    Returns:
+        Updated skill record (may now be promoted)
+    """
+    db = get_db()
+    return db.confirm_skill(skill_id, increment_session)
+
+
+def promote_skills(min_sessions: int = 3, min_success_rate: float = 0.8) -> list[dict]:
+    """
+    Promote all skills that meet criteria.
+    
+    Promoted skills are considered proven and get higher priority.
+    
+    Args:
+        min_sessions: Minimum sessions where skill was used
+        min_success_rate: Minimum success rate required
+    
+    Returns:
+        List of newly promoted skills
+    """
+    db = get_db()
+    return db.promote_skills(min_sessions, min_success_rate)
+
+
+# -------------------- SESSION STATE --------------------
+
+def save_state(
+    project_id: int,
+    state_type: str,
+    focus_summary: str = None,
+    active_problem_ids: list = None,
+    active_component_ids: list = None,
+    pending_decisions: list = None,
+    key_facts: list = None,
+    previous_state_id: int = None,
+    tool_calls_this_session: int = 0,
+    estimated_tokens: int = None
+) -> dict:
+    """
+    Save Claude's session state for later restoration.
+    
+    State types:
+    - 'start': Beginning of a session
+    - 'checkpoint': Mid-session save point
+    - 'handoff': End of session, ready for next session
+    - 'end': Final state
+    
+    Args:
+        project_id: Project this state belongs to
+        state_type: Type of state checkpoint
+        focus_summary: What the session was focused on
+        active_problem_ids: IDs of problems being worked on
+        active_component_ids: IDs of components being worked on
+        pending_decisions: Decisions that need to be made
+        key_facts: Important facts from this session
+        previous_state_id: ID of the previous state (for chaining)
+        tool_calls_this_session: Number of tool calls so far
+        estimated_tokens: Estimated token usage
+    
+    Returns:
+        The created state record
+    """
+    db = get_db()
+    return db.save_state(
+        project_id=project_id,
+        state_type=state_type,
+        focus_summary=focus_summary,
+        active_problem_ids=active_problem_ids,
+        active_component_ids=active_component_ids,
+        pending_decisions=pending_decisions,
+        key_facts=key_facts,
+        previous_state_id=previous_state_id,
+        tool_calls_this_session=tool_calls_this_session,
+        estimated_tokens=estimated_tokens
+    )
+
+
+def get_latest_state(project_id: int) -> Optional[dict]:
+    """
+    Get the most recent session state for a project.
+    
+    Args:
+        project_id: Project to get state for
+    
+    Returns:
+        Latest state record or None
+    """
+    db = get_db()
+    return db.get_latest_state(project_id)
+
+
+def get_state_chain(state_id: int, max_depth: int = 5) -> list[dict]:
+    """
+    Get chain of previous states for walkback.
+    
+    Useful for understanding the history of a session.
+    
+    Args:
+        state_id: Starting state ID
+        max_depth: Maximum number of states to retrieve
+    
+    Returns:
+        List of states from newest to oldest
+    """
+    db = get_db()
+    return db.get_state_chain(state_id, max_depth)
+
+
+def restore_state(state_id: int) -> Optional[dict]:
+    """
+    Get a specific state by ID for restoration.
+    
+    Args:
+        state_id: ID of state to restore
+    
+    Returns:
+        State record or None
+    """
+    db = get_db()
+    return db.restore_state(state_id)
+
+
+# -------------------- TOOL REGISTRY --------------------
+
+def register_tool(
+    mcp_server: str,
+    tool_name: str,
+    effective_for: list = None,
+    common_parameters: dict = None,
+    gotchas: list = None,
+    pairs_with: list = None
+) -> dict:
+    """
+    Register or update a tool in the registry.
+    
+    The tool registry tracks available tools and their effectiveness.
+    
+    Args:
+        mcp_server: Name of the MCP server providing this tool
+        tool_name: Name of the tool
+        effective_for: List of task types this tool is good for
+        common_parameters: Common parameter patterns that work well
+        gotchas: Known issues or pitfalls with this tool
+        pairs_with: Tools that work well in combination with this one
+    
+    Returns:
+        The tool registry record
+    """
+    db = get_db()
+    return db.register_tool(
+        mcp_server=mcp_server,
+        tool_name=tool_name,
+        effective_for=effective_for,
+        common_parameters=common_parameters,
+        gotchas=gotchas,
+        pairs_with=pairs_with
+    )
+
+
+def get_tools(
+    mcp_server: str = None,
+    min_success_rate: float = 0.0
+) -> list[dict]:
+    """
+    Get tools from registry with optional filters.
+    
+    Args:
+        mcp_server: Filter by MCP server
+        min_success_rate: Minimum success rate threshold
+    
+    Returns:
+        List of tool registry records
+    """
+    db = get_db()
+    return db.get_tools(mcp_server=mcp_server, min_success_rate=min_success_rate)
+
+
+def update_tool_stats(mcp_server: str, tool_name: str, succeeded: bool) -> dict:
+    """
+    Update usage stats for a tool after use.
+    
+    Args:
+        mcp_server: Name of the MCP server
+        tool_name: Name of the tool
+        succeeded: Whether the tool use was successful
+    
+    Returns:
+        Updated tool registry record
+    """
+    db = get_db()
+    return db.update_tool_stats(mcp_server, tool_name, succeeded)
+
+
+def get_tool_recommendation(task_type: str, project_id: int = None) -> list[dict]:
+    """
+    Get recommended tools for a task type based on past success.
+    
+    Args:
+        task_type: Type of task (e.g., 'file_creation', 'search', 'debugging')
+        project_id: Optional project context
+    
+    Returns:
+        List of recommended tools with their stats
+    """
+    db = get_db()
+    return db.get_tool_recommendation(task_type, project_id)
+
+
+# -------------------- TOOL USAGE LOGGING --------------------
+
+def log_tool_use(
+    mcp_server: str,
+    tool_name: str,
+    project_id: int = None,
+    session_state_id: int = None,
+    parameters: dict = None,
+    result_size: int = None,
+    execution_time_ms: int = None,
+    task_type: str = None,
+    trigger: str = None,
+    preceding_tool_id: int = None
+) -> dict:
+    """
+    Log a tool usage for pattern analysis.
+    
+    Args:
+        mcp_server: Name of the MCP server
+        tool_name: Name of the tool used
+        project_id: Project context
+        session_state_id: Current session state
+        parameters: Parameters passed to the tool
+        result_size: Size of the result (for tracking)
+        execution_time_ms: How long the tool took
+        task_type: What kind of task this was for
+        trigger: What triggered this tool use
+        preceding_tool_id: ID of the previous tool use (for sequences)
+    
+    Returns:
+        The tool usage record
+    """
+    db = get_db()
+    return db.log_tool_use(
+        mcp_server=mcp_server,
+        tool_name=tool_name,
+        project_id=project_id,
+        session_state_id=session_state_id,
+        parameters=parameters,
+        result_size=result_size,
+        execution_time_ms=execution_time_ms,
+        task_type=task_type,
+        trigger=trigger,
+        preceding_tool_id=preceding_tool_id
+    )
+
+
+def rate_tool_use(usage_id: int, was_useful: bool, user_correction: str = None) -> dict:
+    """
+    Rate a tool usage as useful or not.
+    
+    This feedback improves tool recommendations over time.
+    
+    Args:
+        usage_id: ID of the tool usage to rate
+        was_useful: Whether the tool use was helpful
+        user_correction: Optional correction or feedback
+    
+    Returns:
+        Updated tool usage record
+    """
+    db = get_db()
+    return db.rate_tool_use(usage_id, was_useful, user_correction)
+
+
+def get_usage_patterns(
+    project_id: int = None,
+    mcp_server: str = None,
+    tool_name: str = None,
+    limit: int = 100
+) -> list[dict]:
+    """
+    Get tool usage patterns for analysis.
+    
+    Args:
+        project_id: Filter by project
+        mcp_server: Filter by MCP server
+        tool_name: Filter by specific tool
+        limit: Maximum records to return
+    
+    Returns:
+        List of tool usage records
+    """
+    db = get_db()
+    return db.get_usage_patterns(
+        project_id=project_id,
+        mcp_server=mcp_server,
+        tool_name=tool_name,
+        limit=limit
+    )
+
+
+# -------------------- BEHAVIOR PATTERNS --------------------
+
+def record_pattern(
+    pattern_type: str,
+    pattern_name: str,
+    trigger_conditions: dict = None,
+    actions: list = None,
+    project_id: int = None,
+    source: str = "learned"
+) -> dict:
+    """
+    Record a new behavior pattern.
+    
+    Patterns are sequences or approaches that work well in certain situations.
+    
+    Args:
+        pattern_type: Type - 'tool_sequence', 'response_style', 
+                     'checkpoint_trigger', 'task_approach'
+        pattern_name: Descriptive name for the pattern
+        trigger_conditions: When this pattern should be applied
+        actions: What actions make up this pattern
+        project_id: Project this pattern is specific to (None for global)
+        source: How pattern was created - 'default', 'learned', 'user_defined'
+    
+    Returns:
+        The created pattern record
+    """
+    db = get_db()
+    return db.record_pattern(
+        pattern_type=pattern_type,
+        pattern_name=pattern_name,
+        trigger_conditions=trigger_conditions,
+        actions=actions,
+        project_id=project_id,
+        source=source
+    )
+
+
+def get_patterns(
+    project_id: int = None,
+    pattern_type: str = None,
+    promoted_only: bool = False,
+    min_confidence: float = 0.0
+) -> list[dict]:
+    """
+    Get behavior patterns with optional filters.
+    
+    Args:
+        project_id: Filter to project-specific + global patterns
+        pattern_type: Filter by type
+        promoted_only: Only return promoted (proven) patterns
+        min_confidence: Minimum confidence threshold
+    
+    Returns:
+        List of pattern records
+    """
+    db = get_db()
+    return db.get_patterns(
+        project_id=project_id,
+        pattern_type=pattern_type,
+        promoted_only=promoted_only,
+        min_confidence=min_confidence
+    )
+
+
+def apply_pattern(pattern_id: int, succeeded: bool) -> dict:
+    """
+    Record that a pattern was applied and whether it succeeded.
+    
+    Updates the pattern's confidence score based on outcome.
+    
+    Args:
+        pattern_id: ID of the pattern that was applied
+        succeeded: Whether applying the pattern led to success
+    
+    Returns:
+        Updated pattern record
+    """
+    db = get_db()
+    return db.apply_pattern(pattern_id, succeeded)
+
+
+def confirm_pattern(pattern_id: int, increment_session: bool = True) -> dict:
+    """
+    Confirm a pattern worked in this session, potentially promoting it.
+    
+    Patterns are promoted when they work across 3+ sessions with 80%+ success.
+    
+    Args:
+        pattern_id: ID of the pattern to confirm
+        increment_session: Whether to count this as a new session for the pattern
+    
+    Returns:
+        Updated pattern record (may now be promoted)
+    """
+    db = get_db()
+    return db.confirm_pattern(pattern_id, increment_session)
+
+
+# -------------------- ALGORITHM METRICS --------------------
+
+def log_metric(
+    metric_type: str,
+    context: str = None,
+    action_taken: str = None,
+    outcome: str = None,
+    effectiveness_score: float = None,
+    user_feedback: str = None,
+    should_adjust: bool = None,
+    suggested_adjustment: str = None,
+    project_id: int = None,
+    session_state_id: int = None
+) -> dict:
+    """
+    Log an algorithm metric for self-improvement tracking.
+    
+    Metrics track how well Claude's behaviors are working.
+    
+    Args:
+        metric_type: Type - 'checkpoint_timing', 'tool_choice', 
+                    'response_quality', 'prediction_accuracy', 'user_satisfaction'
+        context: Context where this metric was recorded
+        action_taken: What action was taken
+        outcome: What the outcome was
+        effectiveness_score: 0.0-1.0 score
+        user_feedback: Any feedback from the user
+        should_adjust: Whether behavior should be adjusted
+        suggested_adjustment: What adjustment to make
+        project_id: Project context
+        session_state_id: Session state context
+    
+    Returns:
+        The created metric record
+    """
+    db = get_db()
+    return db.log_metric(
+        metric_type=metric_type,
+        context=context,
+        action_taken=action_taken,
+        outcome=outcome,
+        effectiveness_score=effectiveness_score,
+        user_feedback=user_feedback,
+        should_adjust=should_adjust,
+        suggested_adjustment=suggested_adjustment,
+        project_id=project_id,
+        session_state_id=session_state_id
+    )
+
+
+def get_metrics(
+    project_id: int = None,
+    metric_type: str = None,
+    session_state_id: int = None,
+    limit: int = 100
+) -> list[dict]:
+    """
+    Get algorithm metrics with optional filters.
+    
+    Args:
+        project_id: Filter by project
+        metric_type: Filter by type
+        session_state_id: Filter by session
+        limit: Maximum records to return
+    
+    Returns:
+        List of metric records
+    """
+    db = get_db()
+    return db.get_metrics(
+        project_id=project_id,
+        metric_type=metric_type,
+        session_state_id=session_state_id,
+        limit=limit
+    )
+
+
+def get_tuning_suggestions(project_id: int = None) -> list[dict]:
+    """
+    Get suggested tuning adjustments based on metrics.
+    
+    Returns adjustments that have been suggested multiple times.
+    
+    Args:
+        project_id: Filter by project
+    
+    Returns:
+        List of suggested adjustments with occurrence counts
+    """
+    db = get_db()
+    return db.get_tuning_suggestions(project_id)
+
+
+# -------------------- v1.3 SESSION MANAGEMENT --------------------
+
+def initialize_session_v13(project_id: int) -> dict:
+    """
+    Initialize a v1.3 intelligent session.
+    
+    This is the enhanced session initialization that loads:
+    - Previous session state for context
+    - Applicable learned skills
+    - Tool recommendations
+    - Active behavior patterns
+    - State chain for history
+    
+    Args:
+        project_id: Project to initialize session for
+    
+    Returns:
+        Dictionary containing:
+        - session_state: The new session state
+        - applicable_skills: Skills that may apply
+        - tool_recommendations: Recommended tools
+        - active_patterns: Patterns to follow
+        - previous_state_chain: Recent state history
+    """
+    db = get_db()
+    return db.initialize_session_v13(project_id)
+
+
+def finalize_session_v13(
+    session_state_id: int,
+    focus_summary: str = None,
+    active_problem_ids: list = None,
+    active_component_ids: list = None,
+    pending_decisions: list = None,
+    key_facts: list = None,
+    tool_calls_this_session: int = 0
+) -> dict:
+    """
+    Finalize a v1.3 session with handoff state.
+    
+    Creates an 'end' state that can be used to resume next session.
+    Also promotes any skills that are ready for promotion.
+    
+    Args:
+        session_state_id: ID of the session state to finalize
+        focus_summary: Summary of what the session focused on
+        active_problem_ids: Problems that were being worked on
+        active_component_ids: Components that were being worked on
+        pending_decisions: Decisions left unmade
+        key_facts: Important facts to remember
+        tool_calls_this_session: Total tool calls in this session
+    
+    Returns:
+        Dictionary containing:
+        - end_state: The final session state
+        - promoted_skills: Any skills that were promoted
+    """
+    db = get_db()
+    return db.finalize_session_v13(
+        session_state_id=session_state_id,
+        focus_summary=focus_summary,
+        active_problem_ids=active_problem_ids,
+        active_component_ids=active_component_ids,
+        pending_decisions=pending_decisions,
+        key_facts=key_facts,
+        tool_calls_this_session=tool_calls_this_session
+    )

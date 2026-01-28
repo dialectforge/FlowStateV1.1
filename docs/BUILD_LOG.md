@@ -1,598 +1,125 @@
 # FlowState Build Log
 
-## Project: FlowState - Development Memory System
-**Co-Creators:** John + Claude  
-**Started:** January 23, 2026  
-**License:** MIT (Open Source)
+## v1.5 - Tool Consolidation (✅ COMPLETE & VERIFIED)
+
+**Completed:** January 28, 2026
+
+### Goal
+Reduce tool count to make FlowState usable alongside other MCPs.
+
+### Results
+- **Before:** 79 tools
+- **After:** 21 tools (74% reduction)
+- **Method:** Action-based routing (e.g., `todo` with actions: add/update/list)
+
+### Verification (January 28, 2026)
+- ✅ Claude Desktop config verified pointing to v1.5 server
+- ✅ `list_projects` working
+- ✅ `todo action=list` working with compact mode
+- ✅ `session action=current` working
+- ✅ `get_context lean=True` working
+
+### Bug Fix: log_learning argument order
+- **Issue:** server.py handler passed `component_id` before `category`
+- **Effect:** Category values triggered FK constraint failure
+- **Fix:** Corrected to match tools.py: `(project_id, insight, category, context, component_id, source)`
 
 ---
 
-## SESSION 15 - January 23, 2026
+## v1.4 - Lean Responses (✅ COMPLETE)
 
-### Status Review & Validation ✅
+**Completed:** January 28, 2026
 
-**Verified Current State:**
-- ✅ FilesView.tsx EXISTS and is COMPLETE (~800 lines)
-  - File list with drag-drop upload via Tauri dialog plugin
-  - AI description display with Sparkles icon
-  - Content location viewer with expandable key locations
-  - File preview modal for text/image/binary
-  - Filter by type (document/image/code/other) and component
-  - Search functionality
-  - Remove with confirmation
-  - Placeholder AI features ready for integration
+### Goal
+Reduce context token consumption from MCP tool responses.
 
-- ✅ TypeScript compiles without errors
-- ✅ All v1.1 backend (Rust) complete
-- ✅ All v1.1 React hooks complete  
-- ✅ SyncStatusBar.tsx complete
-- ✅ Settings.tsx complete
-- ✅ FilesView integrated in App.tsx routing
+### Completed Components
 
-**Build Log updated to reflect actual state.**
+#### Merged: get_context with lean parameter
+Single tool with `lean=True/False` parameter:
+- `lean=True`: Returns stats, blocking items, quick todos (minimal tokens)
+- `lean=False`: Returns full objects with all details
 
----
+#### Compact Mode
+Added `compact=True` parameter to list-returning tools:
+- `get_learnings(compact=True)`
+- `problem action="list" compact=True`
+- `get_recent_changes(compact=True)`
+- `todo action="list" compact=True`
 
-## SESSION 14 - January 24, 2026
-
-### v1.1 React Hooks Implementation ✅
-
-**Completed:** Added all v1.1 hooks to `useDatabase.ts` for React integration with new backend features.
-
-**Type Definitions Added:**
-- `Attachment` - 18 fields for file attachments (matches Rust struct)
-- `ContentLocation` - 13 fields for tracking locations within files
-- `Extraction` - 10 fields for AI-extracted records
-- `FileContent` - Response type for file reading
-- `SyncStatus` - 10 fields for device sync state
-- `SyncHistory` - 8 fields for sync operation log
-- `GitStatus` - Git repository state
-- `GitCommit` - Commit history entry
-- `SyncResult` - Sync operation result
-- `Setting` - 4 fields for key-value configuration
-
-**Direct API Functions Added:**
-- **File Attachments:** `attachFile`, `getAttachments`, `getAttachment`, `updateAttachment`, `removeAttachment`, `readFileContent`
-- **Content Locations:** `getContentLocations`, `createContentLocation`, `deleteContentLocation`
-- **Extractions:** `getExtractions`, `createExtraction`, `updateExtractionReview`, `deleteExtraction`
-- **Git Sync:** `gitInit`, `gitStatus`, `gitSync`, `gitSetRemote`, `gitClone`, `gitHistory`
-- **Settings:** `getSettings`, `getSetting`, `setSetting`, `deleteSetting`, `getSettingsByCategory`
-- **Sync Status:** `getSyncStatus`, `initSyncStatus`, `updateSyncStatus`, `getSyncHistory`, `logSyncOperation`
-- **File Export:** `writeTextFile`
-
-**React Hook Functions Added:**
-- `loadAttachments(projectId, componentId?, problemId?)` - Load file attachments
-- `performSync(commitMessage?)` - Sync with auto status update
-- `loadSyncStatus()` - Get/initialize device sync status
-- `loadSettings()` - Load all settings
-- `loadSettingsByCategory(category)` - Load settings by category
-
-**Updated Existing:**
-- `getProjectContext` - Added `includeFiles` parameter
-- `loadProjectContext` - Added `includeFiles` parameter support
-
-**Files Modified:**
-- `/gui/src/hooks/useDatabase.ts` (~750 lines, up from ~360)
-
-**Build Status:** ✅ TypeScript compiles without errors
+Compact mode:
+- Removes null/empty values
+- Strips timestamp fields
+- Truncates text fields > 100 chars
 
 ---
 
-## SESSION 13 - January 23, 2026
+## v1.3 - Intelligence Layer (✅ COMPLETE)
 
-### Kanban Drag-Drop Bug Fix ✅
+**Completed:** January 28, 2026
 
-**Problem:** Dragging problems between columns in KanbanBoard wasn't working reliably.
+### Goal
+Self-learning system that remembers across sessions.
 
-**Root Cause:** The `handleDrop` function was relying on React state (`draggedProblem`) which can be stale due to async state updates.
+### Completed Components
 
-**Fix:** Changed to read the problem ID directly from `e.dataTransfer.getData()` instead of relying on React state.
+#### Database Schema
+6 v1.3 tables: learned_skills, session_state, tool_registry, tool_usage, behavior_patterns, algorithm_metrics
 
-**Files Modified:**
-- `/gui/src/components/KanbanBoard.tsx`
+#### MCP Tools (now consolidated into `self_improve`)
+Actions: learn_skill, get_skills, confirm_skill, save_state, get_state, log_metric, get_metrics
 
-**Build Status:** ✅ TypeScript compiles, Vite builds successfully
-
-### Verified Existing Work ✅
-
-**Settings.tsx** - Already complete (~790 lines):
-- General tab: Data location, theme selector (light/dark/system)
-- Sync tab: Git status, remote URL, auto-sync toggle, interval, sync on open/close, history
-- AI tab: Enable toggle, API key (masked), auto-describe, suggest related, expand notes, auto-extract, model selection
-- Full save/load via Tauri backend commands
-
-**Menu Handlers (App.tsx)** - Already complete (~538 lines):
-- All v1.1 menu events wired up
-- `sync_settings` → Opens Settings on Sync tab ✅
-- `toggle_sidebar` / `toggle_ai_panel` → State toggles (UI pending) ✅
-- Tools menu items → Toast notifications + navigation ✅
-- Help menu items → Opens HelpSystem with correct section ✅
-- Keyboard shortcuts: ⌘K (search), ⌘⇧M (capture), ⌘, (settings), ⌘1-8 (views)
+#### Bootstrap Data
+8 learned skills seeded covering approaches, gotchas, and user preferences.
 
 ---
 
-## SESSION 12 - January 23, 2026
+## v1.2 - Project Knowledge Base (✅ COMPLETE)
 
-### SyncStatusBar Component + Menu Integration ✅
+**Completed:** January 28, 2026
 
-**Created `SyncStatusBar.tsx`** - Bottom status bar for v1.1 sync features
-
-**Features implemented:**
-- Sync status indicator (synced/pending/syncing/conflict/disconnected/error)
-- Last sync time with relative formatting ("5 mins ago", "2 hours ago")
-- Device name display
-- Git branch display
-- Pending changes count
-- "Sync Now" button with loading state
-- Expandable sync history panel
-- Error toast notifications
-
-**Component location:** `/gui/src/components/SyncStatusBar.tsx` (~410 lines)
-
-**Build Status:** ✅ TypeScript compiles, Vite builds successfully
+### Features
+- `project_variables` table: Store server addresses, credentials, config
+- `project_methods` table: Document patterns, workflows, conventions
+- 5 new GUI views: KnowledgeView, ConversationsView, SessionsView, TodoBoard, DataBrowser
 
 ---
 
-## SESSION 11 - January 23, 2026
+## v1.1 - File Handling & Git Sync (✅ COMPLETE)
 
-### Build Fix & Verification ✅
+**Completed:** January 27, 2026
 
-**Issue:** Build was failing due to TypeScript not being available via npx
-
-**Fix:**
-```bash
-cd "/Users/johnmartin/code/FlowState/gui"
-rm -rf node_modules package-lock.json
-npm install --include=dev
-```
-
-**Result:** 
-- ✅ Full build completed successfully
-- ✅ FlowState.app created at `/gui/src-tauri/target/release/bundle/macos/FlowState.app`
-- ✅ DMG installer created at `/gui/src-tauri/target/release/bundle/dmg/FlowState_1.0.0_aarch64.dmg`
-- ✅ All v1.1 Rust code compiled without errors
-
-**Build Time:** ~1m 36s for full release build
+### Features
+- File attachments with drag-and-drop
+- Git-based sync across machines
+- Settings panel
+- Native macOS menu bar integration
 
 ---
 
-## SESSION 10 - January 23, 2026
+## v1.0 - Core System (✅ COMPLETE)
 
-### v1.1 Upgrade - MASSIVE PROGRESS ✅
+**Completed:** January 26, 2026
 
-**Completed the major Rust backend update for v1.1**
-
-#### What Was Done This Session:
-
-1. **lib.rs - Complete v1.1 Command Implementation** ✅
-   - File: `/Users/johnmartin/code/FlowState/gui/src-tauri/src/lib.rs`
-   - Now ~1200+ lines of complete backend commands
-   
-   **File Attachment Commands Added:**
-   - `attach_file` - Attach file with optional copy to bundle
-   - `get_attachments` - List attachments by project/component/problem
-   - `get_attachment` - Get single attachment
-   - `update_attachment` - Update metadata, AI descriptions
-   - `remove_attachment` - Remove with optional file deletion
-   - `read_file_content` - Read text/image/PDF content
-   
-   **Content Location Commands Added:**
-   - `get_content_locations` - Get locations for attachment
-   - `create_content_location` - Create page/line reference
-   - `delete_content_location` - Remove location
-   
-   **Extraction Commands Added:**
-   - `get_extractions` - Get extractions for attachment
-   - `create_extraction` - Track extracted records
-   - `update_extraction_review` - Mark reviewed/approved
-   - `delete_extraction` - Remove extraction
-   
-   **Git Sync Commands Added:**
-   - `git_init` - Initialize Git repo with .gitignore
-   - `git_status` - Check repo state, pending changes, remote
-   - `git_sync` - Add, commit, pull --rebase, push
-   - `git_set_remote` - Add/update remote URL
-   - `git_clone` - Clone existing repo
-   - `git_history` - Get commit history
-   
-   **Settings Commands Added:**
-   - `get_settings` - All settings
-   - `get_setting` - Single setting by key
-   - `set_setting` - Set/update setting
-   - `delete_setting` - Remove setting
-   - `get_settings_by_category` - Settings in category
-   
-   **Sync Status Commands Added:**
-   - `get_sync_status` - Get device sync state
-   - `init_sync_status` - Initialize device with UUID
-   - `update_sync_status` - Update sync metadata
-   - `get_sync_history` - Get sync operation log
-   - `log_sync_operation` - Log sync operation
-
-2. **Menu System Updated to v1.1** ✅
-3. **Cargo.toml Updated** ✅ - sha2, uuid, base64 dependencies
-4. **Updated get_project_context** ✅ - Added `include_files` parameter
+### Features
+- SQLite database with full schema
+- Python MCP server
+- Tauri GUI with 9 views
+- Problem → Attempt → Solution workflow
 
 ---
 
-## v1.1 IMPLEMENTATION STATUS
+## Version Summary
 
-### Phase 1: File Handling System
-| Task | Status | Notes |
-|------|--------|-------|
-| database.rs - All v1.1 structs | ✅ Complete | Session 9 |
-| database.rs - All v1.1 CRUD | ✅ Complete | Session 9 |
-| lib.rs - All file commands | ✅ Complete | Session 10 |
-| Cargo.toml dependencies | ✅ Complete | sha2, uuid, base64 |
-| useDatabase.ts - File hooks | ✅ Complete | Session 14 |
-| FilesView.tsx | ✅ Complete | Session 15 verified |
-
-### Phase 2: Git-Based Sync System
-| Task | Status | Notes |
-|------|--------|-------|
-| database.rs - SyncStatus | ✅ Complete | Session 9 |
-| database.rs - SyncHistory | ✅ Complete | Session 9 |
-| lib.rs - All git commands | ✅ Complete | Session 10 |
-| useDatabase.ts - Git hooks | ✅ Complete | Session 14 |
-| SyncStatusBar.tsx | ✅ Complete | Session 12 |
-| Settings Sync tab | ✅ Complete | Session 13 |
-
-### Phase 3: Settings System
-| Task | Status | Notes |
-|------|--------|-------|
-| database.rs - Settings | ✅ Complete | Session 9 |
-| lib.rs - Settings commands | ✅ Complete | Session 10 |
-| useDatabase.ts - Settings hooks | ✅ Complete | Session 14 |
-| Settings.tsx panel UI | ✅ Complete | Session 13 (~790 lines) |
-
-### Phase 4: Menu Updates
-| Task | Status | Notes |
-|------|--------|-------|
-| All v1.1 menu items | ✅ Complete | Session 10 |
-| Menu event handlers | ✅ Complete | Session 12-13 |
-
-### Phase 5: MCP Server (Python)
-| Task | Status | Notes |
-|------|--------|-------|
-| v1.0 tools (32 tools) | ✅ Complete | Working |
-| File handling tools | ⏳ Pending | v1.1 addition |
-| Git sync tools | ⏳ Pending | v1.1 addition |
-| Updated get_project_context | ⏳ Pending | v1.1 addition |
-
-### Phase 6: React Frontend  
-| Task | Status | Notes |
-|------|--------|-------|
-| useDatabase.ts - All v1.1 hooks | ✅ Complete | Session 14 |
-| SyncStatusBar.tsx | ✅ Complete | Session 12 |
-| Settings.tsx | ✅ Complete | Session 13 |
-| FilesView.tsx | ✅ Complete | ~800 lines |
+| Version | Status | Description |
+|---------|--------|-------------|
+| v1.0 | ✅ Complete | Core system |
+| v1.1 | ✅ Complete | File handling + Git sync |
+| v1.2 | ✅ Complete | Project Knowledge Base |
+| v1.3 | ✅ Complete | Intelligence Layer |
+| v1.4 | ✅ Complete | Lean Responses |
+| v1.5 | ✅ Complete | Tool Consolidation (79→21) |
 
 ---
 
-## WHAT NEEDS TO BE DONE NEXT
-
-**PRIORITY 1: MCP Server v1.1 Tools (Python)**
-Add to `/mcp-server/flowstate/tools.py`:
-- `attach_file` - Attach files via MCP
-- `describe_file` - AI describe file (placeholder)
-- `extract_file` - Extract to database records (placeholder)
-- `search_file_content` - Search across indexed files
-- `git_init`, `git_status`, `git_sync` - Git operations via MCP
-- Update `get_project_context` to include files
-
-**PRIORITY 2: Testing & Polish**
-- Test file attachments end-to-end in GUI
-- Test Git sync flow
-- Test settings persistence
-- Build and verify app launches
-
-**PRIORITY 3: AI Integration (Future)**
-- Integrate actual Claude API calls for file descriptions
-- Implement extraction logic
-- Content location auto-generation
-
----
-
-## COMPLETE GUI STATUS: v1.1 FRONTEND COMPLETE ✅
-
-| View | Status | Notes |
-|------|--------|-------|
-| Dashboard | ✅ Complete | Working |
-| TreeView | ✅ Complete | Working |
-| KanbanBoard | ✅ Complete | Working |
-| Timeline | ✅ Complete | Working |
-| SearchPanel | ✅ Complete | Working |
-| DecisionTree | ✅ Complete | Working |
-| StoryMode | ✅ Complete | Working |
-| ArchitectureDiagram | ✅ Complete | Working |
-| QuickCapture | ✅ Complete | Working |
-| **FilesView** | ✅ Complete | **v1.1 NEW** |
-| **SyncStatusBar** | ✅ Complete | **v1.1 NEW** |
-| **Settings** | ✅ Complete | **v1.1 NEW** |
-| Native Menu | ✅ Complete | v1.1 updated |
-| HelpSystem | ✅ Complete | All sections |
-
----
-
-## BACKEND STATUS
-
-### MCP Server (Python): 32 Tools ✅ (needs v1.1 tools)
-Location: `/Users/johnmartin/code/FlowState/mcp-server/`
-
-### Tauri Backend (Rust): 60+ Commands ✅ (v1.1 COMPLETE)
-Location: `/Users/johnmartin/code/FlowState/gui/src-tauri/`
-
-**Commands by category:**
-- Project: 7 commands
-- Component: 5 commands  
-- Change: 3 commands
-- Problem: 7 commands
-- Attempt: 3 commands
-- Solution: 2 commands
-- Todo: 5 commands
-- Learning: 5 commands
-- Search: 1 command
-- Story: 2 commands
-- **Attachment: 6 commands (v1.1)**
-- **Content Location: 3 commands (v1.1)**
-- **Extraction: 4 commands (v1.1)**
-- **Git: 6 commands (v1.1)**
-- **Settings: 5 commands (v1.1)**
-- **Sync Status: 5 commands (v1.1)**
-
-### Database: SQLite Schema v1.1 ✅
-Location: `/Users/johnmartin/code/FlowState/database/schema.sql`
-
----
-
-## FILE STRUCTURE
-
-```
-/Users/johnmartin/code/FlowState/
-├── gui/
-│   ├── src/
-│   │   ├── App.tsx ✅
-│   │   ├── components/
-│   │   │   ├── Dashboard.tsx ✅
-│   │   │   ├── TreeView.tsx ✅
-│   │   │   ├── KanbanBoard.tsx ✅
-│   │   │   ├── Timeline.tsx ✅
-│   │   │   ├── SearchPanel.tsx ✅
-│   │   │   ├── DecisionTree.tsx ✅
-│   │   │   ├── StoryMode.tsx ✅
-│   │   │   ├── ArchitectureDiagram.tsx ✅
-│   │   │   ├── QuickCapture.tsx ✅
-│   │   │   ├── CreateModals.tsx ✅
-│   │   │   ├── HelpSystem.tsx ✅
-│   │   │   ├── FilesView.tsx ✅ (v1.1)
-│   │   │   ├── SyncStatusBar.tsx ✅ (v1.1)
-│   │   │   └── Settings.tsx ✅ (v1.1)
-│   │   ├── hooks/
-│   │   │   └── useDatabase.ts ✅ (v1.1 complete)
-│   │   └── stores/
-│   │       └── appStore.ts ✅
-│   └── src-tauri/
-│       ├── src/
-│       │   ├── lib.rs ✅ (v1.1 complete)
-│       │   └── database.rs ✅ (v1.1 complete)
-│       └── Cargo.toml ✅ (v1.1 complete)
-├── mcp-server/ ✅ v1.0 (needs v1.1 tools)
-├── database/schema.sql ✅ v1.1
-└── docs/
-    ├── BUILD_LOG.md (this file)
-    └── NEXT_SESSION.md
-```
-
----
-
-## RUN COMMANDS
-
-```bash
-# Start development
-cd "/Users/johnmartin/code/FlowState/gui"
-npm run dev       # Frontend only (fast)
-cargo tauri dev   # Full app with backend
-
-# Build for production
-cargo tauri build
-
-# Check TypeScript
-npx tsc --noEmit
-```
-
----
-
-## SESSION HISTORY
-
-- **Session 1-4:** MCP Server, Database Schema, Initial GUI setup
-- **Session 5:** Completed 5/9 views
-- **Session 6:** Completed remaining 4 views + modals
-- **Session 7:** Added custom MenuBar (buggy) and HelpSystem (working)
-- **Session 8:** Replaced custom MenuBar with native Tauri menu ✅
-- **Session 9:** Started v1.1 upgrade - schema + database.rs done ✅
-- **Session 10:** Completed lib.rs v1.1 commands + Cargo.toml + menu updates ✅
-- **Session 11:** Build fix & verification ✅
-- **Session 12:** SyncStatusBar + menu event handlers ✅
-- **Session 13:** Settings.tsx complete, Kanban bug fix ✅
-- **Session 14:** useDatabase.ts v1.1 hooks complete ✅
-- **Session 15:** Status review - confirmed FilesView.tsx complete ✅
-
----
-
-## SESSION 16 - January 24, 2026
-
-### MCP Server v1.1 Complete + Dogfooding Initiated ✅
-
-**What Was Done:**
-
-1. **Added v1.1 Tools to MCP Server** ✅
-   - File attachment tools: `attach_file`, `get_attachments`, `remove_attachment`, `search_file_content`
-   - Git sync tools: `git_init`, `git_status`, `git_sync`, `git_set_remote`, `git_clone`, `git_history`
-   - Updated `get_project_context` to include `include_files` parameter
-   - Total: 42 tools (32 v1.0 + 10 v1.1)
-
-2. **Fixed Python Encoding Issue** ✅
-   - Added `# -*- coding: utf-8 -*-` to `__init__.py`
-   - Replaced Unicode arrow character with ASCII
-
-3. **Configured Claude Desktop** ✅
-   - Added FlowState to `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Server runs with `python3 -m flowstate.server`
-
-4. **Dogfooding Initiated** ✅
-   - Created "FlowState" project in its own database
-   - Created 5 components: MCP Server, GUI, Database, Rust Backend, React Hooks
-   - Logged 3 solved problems from build journey
-   - Added 6 learnings
-   - Added 5 todos
-
-**Files Modified:**
-- `/mcp-server/flowstate/tools.py` - Added 620+ lines of v1.1 tools
-- `/mcp-server/flowstate/server.py` - Added 10 new tool definitions and handlers
-- `/mcp-server/flowstate/__init__.py` - Fixed encoding
-- `~/Library/Application Support/Claude/claude_desktop_config.json` - Added FlowState MCP
-
-**MCP Server Status:**
-- 42 tools total
-- Git initialized at ~/FlowState-Data
-- Database at ~/.flowstate/flowstate.db
-- Ready for Claude Desktop integration
-
----
-
-## SESSION 17 - January 24, 2026
-
-### MCP Server Launch Fix + GUI Launch ✅
-
-**Problem 1: MCP Server Failed on Claude Desktop Restart**
-
-**Symptoms:**
-- FlowState MCP tools not available after restarting Claude Desktop
-- Server worked when tested directly from terminal
-
-**Root Cause Found in Logs** (`~/Library/Logs/Claude/mcp-server-flowstate.log`):
-```
-ModuleNotFoundError: No module named 'flowstate'
-```
-
-The issue: Claude Desktop runs `python3 -m flowstate.server` but the `cwd` config option doesn't add the directory to Python's module path. Python couldn't find the `flowstate` module.
-
-**Solution:**
-1. Created wrapper script `/Users/johnmartin/code/FlowState/mcp-server/run_server.sh`:
-   ```bash
-   #!/bin/bash
-   cd "/Users/johnmartin/code/FlowState/mcp-server"
-   export PYTHONPATH="/Users/johnmartin/code/FlowState/mcp-server:$PYTHONPATH"
-   exec python3 -m flowstate.server
-   ```
-
-2. Updated `~/Library/Application Support/Claude/claude_desktop_config.json`:
-   ```json
-   "flowstate": {
-     "command": "/Users/johnmartin/code/FlowState/mcp-server/run_server.sh",
-     "args": []
-   }
-   ```
-
-3. Created `/Users/johnmartin/code/FlowState/mcp-server/flowstate/__main__.py` for proper module entry point
-
-**Problem 2: GUI Not Running**
-
-**Solution:** Launched existing built app:
-```bash
-open "/Users/johnmartin/code/FlowState/gui/src-tauri/target/release/bundle/macos/FlowState.app"
-```
-
-**Files Created:**
-- `/mcp-server/run_server.sh` - Wrapper script with PYTHONPATH
-- `/mcp-server/flowstate/__main__.py` - Module entry point
-
-**Files Modified:**
-- `~/Library/Application Support/Claude/claude_desktop_config.json` - Uses wrapper script
-
-**Learning Captured:**
-- When using `python3 -m module.name` with MCP servers, the `cwd` config alone isn't enough
-- Python needs the parent directory in `PYTHONPATH` to find the module
-- Always check `~/Library/Logs/Claude/mcp-server-{name}.log` for MCP debugging
-
-**Next Steps:**
-- Restart Claude Desktop to load fixed MCP config
-- Test: `get_project_context "FlowState"`
-- Test GUI functionality with database
-
----
-
-**Status:** v1.1 COMPLETE ✅ | MCP Server FIXED ✅ | GUI LAUNCHED ✅ | DOGFOODING ACTIVE 🐕
-
-
----
-
-## SESSION 18 - January 24, 2026
-
-### Full Project History Loaded into FlowState ✅
-
-**What Was Done:**
-
-1. **Attached Specification Documents** ✅
-   - `Flow state.md` (v1.0 spec) - 76KB
-   - `FlowStatev1.1.rtf` (v1.1 spec) - 53KB
-   - Both copied to project bundle with tags
-
-2. **Created Component Hierarchy** ✅
-   - MCP Server (parent)
-     - MCP Tools v1.0 (complete)
-     - MCP Tools v1.1 (complete)
-   - GUI (parent)
-     - GUI Views (complete)
-     - GUI Views v1.1 (complete)
-     - Native Menu (complete)
-     - Help System (complete)
-   - Database (complete)
-   - Rust Backend (complete)
-   - React Hooks (complete)
-
-3. **Logged Solved Problems with Decision Trees** ✅
-   - Custom MenuBar buggy → Replaced with native Tauri menu
-   - Kanban drag-drop not working → Use dataTransfer instead of React state
-   - MCP Server fails on restart → Created wrapper script with PYTHONPATH
-   - TypeScript build failure → Clean install with --include=dev
-
-4. **Captured 12 Learnings** ✅
-   - Tauri native menus > custom React menus
-   - SQLite triggers need IF NOT EXISTS
-   - Split React components by concern
-   - cargo tauri dev for fast iteration
-   - File attachments in bundles enable sync
-   - MCP tools return dicts, not Pydantic models
-   - rusqlite Option handling with as_deref()
-   - Git-based sync simpler than cloud services
-   - Direct API + React hook wrappers pattern
-   - MCP logs at ~/Library/Logs/Claude/
-   - Self-contained views with loading/error states
-   - API key masking in UI
-
-5. **Logged 5 Key Changes** ✅
-   - Schema v1.0 → v1.1
-   - MCP tools 32 → 42
-   - Rust commands ~40 → 60+
-   - Menu: React → Native Tauri
-   - Hooks file ~360 → ~750 lines
-
-6. **Updated All Component Statuses** ✅
-   - All 11 components marked as `complete`
-
-**Files Modified:**
-- FlowState database at `~/.flowstate/flowstate.db`
-
-**FlowState Project Stats:**
-- 11 components (all complete)
-- 7 solved problems (4 new from build log)
-- 12 learnings
-- 5 changes logged
-- 5 todos pending
-- 2 file attachments
-
----
-
-**Status:** v1.1 COMPLETE ✅ | MCP Server WORKING ✅ | GUI BUILT ✅ | DOGFOODING COMPLETE 🐕
-
+*Last updated: January 28, 2026*

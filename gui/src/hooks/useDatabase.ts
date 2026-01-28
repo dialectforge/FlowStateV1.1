@@ -218,6 +218,77 @@ export interface Setting {
 }
 
 // ============================================================
+// v1.2 TYPE DEFINITIONS: PROJECT KNOWLEDGE BASE
+// ============================================================
+
+export interface ProjectVariable {
+  id: number;
+  project_id: number;
+  category: string; // 'server', 'credentials', 'config', 'environment', 'endpoint', 'custom'
+  name: string;
+  value?: string;
+  is_secret: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMethod {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string;
+  category?: string; // 'auth', 'deployment', 'testing', 'architecture', 'workflow', 'convention', 'api', 'security', 'other'
+  steps?: string; // JSON array of step strings
+  code_example?: string;
+  related_component_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// v1.2 TYPE DEFINITIONS: CONVERSATIONS & SESSIONS
+// ============================================================
+
+export interface Conversation {
+  id: number;
+  project_id: number;
+  session_id?: string;
+  user_prompt_summary: string;
+  assistant_response_summary?: string;
+  key_decisions?: string; // JSON array
+  problems_referenced?: string; // JSON array of problem IDs
+  solutions_created?: string; // JSON array of solution IDs
+  tokens_used?: number;
+  created_at: string;
+}
+
+export interface Session {
+  id: number;
+  project_id: number;
+  started_at: string;
+  ended_at?: string;
+  focus_component_id?: number;
+  focus_problem_id?: number;
+  summary?: string;
+  outcomes?: string; // JSON array
+  duration_minutes?: number;
+}
+
+export interface CrossReference {
+  id: number;
+  source_project_id: number;
+  source_type: string; // 'problem', 'solution', 'learning', 'component', 'change'
+  source_id: number;
+  target_project_id: number;
+  target_type: string;
+  target_id: number;
+  relationship: string; // 'similar_to', 'derived_from', 'contradicts', 'depends_on', 'supersedes', 'related_to'
+  notes?: string;
+  created_at: string;
+}
+
+// ============================================================
 // PROJECT COMMANDS
 // ============================================================
 
@@ -775,6 +846,142 @@ export async function writeTextFile(path: string, content: string): Promise<void
 }
 
 // ============================================================
+// v1.2: PROJECT VARIABLES COMMANDS
+// ============================================================
+
+export async function createProjectVariable(
+  projectId: number,
+  category: string,
+  name: string,
+  value?: string,
+  isSecret?: boolean,
+  description?: string
+): Promise<ProjectVariable> {
+  return invoke('create_project_variable', {
+    projectId,
+    category,
+    name,
+    value,
+    isSecret,
+    description,
+  });
+}
+
+export async function getProjectVariables(
+  projectId: number,
+  category?: string
+): Promise<ProjectVariable[]> {
+  return invoke('get_project_variables', { projectId, category });
+}
+
+export async function updateProjectVariable(
+  id: number,
+  category?: string,
+  name?: string,
+  value?: string,
+  isSecret?: boolean,
+  description?: string
+): Promise<ProjectVariable> {
+  return invoke('update_project_variable', {
+    id,
+    category,
+    name,
+    value,
+    isSecret,
+    description,
+  });
+}
+
+export async function deleteProjectVariable(id: number): Promise<void> {
+  return invoke('delete_project_variable', { id });
+}
+
+// ============================================================
+// v1.2: PROJECT METHODS COMMANDS
+// ============================================================
+
+export async function createProjectMethod(
+  projectId: number,
+  name: string,
+  description: string,
+  category?: string,
+  steps?: string,
+  codeExample?: string,
+  relatedComponentId?: number
+): Promise<ProjectMethod> {
+  return invoke('create_project_method', {
+    projectId,
+    name,
+    description,
+    category,
+    steps,
+    codeExample,
+    relatedComponentId,
+  });
+}
+
+export async function getProjectMethods(
+  projectId: number,
+  category?: string
+): Promise<ProjectMethod[]> {
+  return invoke('get_project_methods', { projectId, category });
+}
+
+export async function updateProjectMethod(
+  id: number,
+  name?: string,
+  description?: string,
+  category?: string,
+  steps?: string,
+  codeExample?: string,
+  relatedComponentId?: number
+): Promise<ProjectMethod> {
+  return invoke('update_project_method', {
+    id,
+    name,
+    description,
+    category,
+    steps,
+    codeExample,
+    relatedComponentId,
+  });
+}
+
+export async function deleteProjectMethod(id: number): Promise<void> {
+  return invoke('delete_project_method', { id });
+}
+
+// ============================================================
+// v1.2: CONVERSATIONS COMMANDS (read-only view of MCP data)
+// ============================================================
+
+export async function getConversations(
+  projectId: number,
+  limit?: number
+): Promise<Conversation[]> {
+  return invoke('get_conversations', { projectId, limit });
+}
+
+// ============================================================
+// v1.2: SESSIONS COMMANDS (read-only view of MCP data)
+// ============================================================
+
+export async function getSessionsList(
+  projectId: number,
+  limit?: number
+): Promise<Session[]> {
+  return invoke('get_sessions_list', { projectId, limit });
+}
+
+// ============================================================
+// v1.2: CROSS REFERENCES COMMANDS (read-only view of MCP data)
+// ============================================================
+
+export async function getCrossReferences(projectId: number): Promise<CrossReference[]> {
+  return invoke('get_cross_references', { projectId });
+}
+
+// ============================================================
 // REACT HOOK
 // ============================================================
 
@@ -974,6 +1181,64 @@ export function useDatabase() {
   };
 
   // ============================================================
+  // v1.2: PROJECT KNOWLEDGE HELPER FUNCTIONS
+  // ============================================================
+
+  const loadProjectVariables = async (projectId: number, category?: string) => {
+    try {
+      const variables = await getProjectVariables(projectId, category);
+      return variables;
+    } catch (e) {
+      store.setError(String(e));
+      return [];
+    }
+  };
+
+  const loadProjectMethods = async (projectId: number, category?: string) => {
+    try {
+      const methods = await getProjectMethods(projectId, category);
+      return methods;
+    } catch (e) {
+      store.setError(String(e));
+      return [];
+    }
+  };
+
+  // ============================================================
+  // v1.2: CONVERSATION & SESSION HELPER FUNCTIONS
+  // ============================================================
+
+  const loadConversations = async (projectId: number, limit?: number) => {
+    try {
+      const conversations = await getConversations(projectId, limit);
+      return conversations;
+    } catch (e) {
+      store.setError(String(e));
+      return [];
+    }
+  };
+
+  const loadSessions = async (projectId: number, limit?: number) => {
+    try {
+      const sessions = await getSessionsList(projectId, limit);
+      return sessions;
+    } catch (e) {
+      store.setError(String(e));
+      return [];
+    }
+  };
+
+  const loadCrossReferences = async (projectId: number) => {
+    try {
+      const refs = await getCrossReferences(projectId);
+      return refs;
+    } catch (e) {
+      store.setError(String(e));
+      return [];
+    }
+  };
+
+  // ============================================================
   // RETURN ALL FUNCTIONS
   // ============================================================
 
@@ -1097,5 +1362,31 @@ export function useDatabase() {
 
     // File Export
     writeTextFile,
+
+    // v1.2: Project Variables API
+    createProjectVariable,
+    getProjectVariables,
+    updateProjectVariable,
+    deleteProjectVariable,
+    loadProjectVariables,
+
+    // v1.2: Project Methods API
+    createProjectMethod,
+    getProjectMethods,
+    updateProjectMethod,
+    deleteProjectMethod,
+    loadProjectMethods,
+
+    // v1.2: Conversations API (read-only)
+    getConversations,
+    loadConversations,
+
+    // v1.2: Sessions API (read-only)
+    getSessionsList,
+    loadSessions,
+
+    // v1.2: Cross References API (read-only)
+    getCrossReferences,
+    loadCrossReferences,
   };
 }

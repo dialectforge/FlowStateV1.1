@@ -24,6 +24,12 @@ import { FilesView } from './components/FilesView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SyncStatusBar } from './components/SyncStatusBar';
 import { Settings } from './components/Settings';
+// v1.2: New views for complete database visibility
+import { ConversationsView } from './components/ConversationsView';
+import { SessionsView } from './components/SessionsView';
+import { TodoBoard } from './components/TodoBoard';
+import { KnowledgeView } from './components/KnowledgeView';
+import { DataBrowser } from './components/DataBrowser';
 import './App.css';
 
 // ============================================================
@@ -170,6 +176,22 @@ function App() {
           break;
         case 'view_files':
           setCurrentView('files');
+          break;
+        // v1.2: New views
+        case 'view_todos':
+          setCurrentView('todos');
+          break;
+        case 'view_conversations':
+          setCurrentView('conversations');
+          break;
+        case 'view_sessions':
+          setCurrentView('sessions');
+          break;
+        case 'view_knowledge':
+          setCurrentView('knowledge');
+          break;
+        case 'view_data':
+          setCurrentView('data');
           break;
         case 'toggle_sidebar':
           setShowSidebar(prev => !prev);
@@ -398,6 +420,17 @@ function App() {
         return <SearchPanel />;
       case 'decision':
         return <DecisionTree />;
+      // v1.2: New views
+      case 'todos':
+        return <ErrorBoundary><TodoBoard /></ErrorBoundary>;
+      case 'conversations':
+        return <ErrorBoundary><ConversationsView /></ErrorBoundary>;
+      case 'sessions':
+        return <ErrorBoundary><SessionsView /></ErrorBoundary>;
+      case 'knowledge':
+        return <ErrorBoundary><KnowledgeView /></ErrorBoundary>;
+      case 'data':
+        return <ErrorBoundary><DataBrowser /></ErrorBoundary>;
       default:
         return <Dashboard />;
     }

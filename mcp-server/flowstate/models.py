@@ -175,3 +175,133 @@ class SearchResult(BaseModel):
     title: str
     snippet: str
     relevance_score: float
+
+
+# ============================================================
+# v1.3 INTELLIGENCE LAYER MODELS
+# ============================================================
+
+# Type hints for v1.3 enums
+SkillType = str  # 'tool_capability', 'user_preference', 'approach', 'gotcha', 'project_specific'
+StateType = str  # 'start', 'checkpoint', 'handoff', 'end'
+PatternType = str  # 'tool_sequence', 'response_style', 'checkpoint_trigger', 'task_approach'
+PatternSource = str  # 'default', 'learned', 'user_defined'
+MetricType = str  # 'checkpoint_timing', 'tool_choice', 'response_quality', 'prediction_accuracy', 'skill_application', 'promotion'
+
+
+class LearnedSkill(BaseModel):
+    """Knowledge Claude has learned about tools, user, and project."""
+    id: Optional[int] = None
+    skill_type: SkillType
+    skill: str
+    context: Optional[str] = None
+    project_id: Optional[int] = None  # NULL = global skill
+    tool_name: Optional[str] = None
+    source_type: Optional[str] = None  # 'observation', 'correction', 'explicit', 'inference'
+    source_session_id: Optional[int] = None
+    confidence: float = 0.6
+    session_count: int = 1
+    times_applied: int = 0
+    times_succeeded: int = 0
+    promoted: bool = False
+    promoted_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class SessionState(BaseModel):
+    """Claude's working memory at checkpoints."""
+    id: Optional[int] = None
+    project_id: int
+    state_type: StateType
+    focus_summary: Optional[str] = None
+    active_problem_ids: Optional[list[int]] = None  # JSON in DB
+    active_component_ids: Optional[list[int]] = None  # JSON in DB
+    pending_decisions: Optional[list[str]] = None  # JSON in DB
+    key_facts: Optional[list[str]] = None  # JSON in DB
+    previous_state_id: Optional[int] = None
+    tool_calls_this_session: int = 0
+    estimated_tokens: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+
+class ToolRegistryEntry(BaseModel):
+    """Knowledge about an MCP tool."""
+    id: Optional[int] = None
+    mcp_server: str
+    tool_name: str
+    effective_for: Optional[list[str]] = None  # JSON in DB
+    common_parameters: Optional[dict] = None  # JSON in DB
+    gotchas: Optional[list[str]] = None  # JSON in DB
+    pairs_with: Optional[list[str]] = None  # JSON in DB
+    times_used: int = 0
+    times_succeeded: int = 0
+    success_rate: float = 0.0
+    last_used: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ToolUsage(BaseModel):
+    """Log of an actual tool call."""
+    id: Optional[int] = None
+    project_id: Optional[int] = None
+    session_state_id: Optional[int] = None
+    tool_registry_id: Optional[int] = None
+    mcp_server: str
+    tool_name: str
+    parameters: Optional[dict] = None  # JSON in DB
+    result_size: Optional[int] = None
+    execution_time_ms: Optional[int] = None
+    task_type: Optional[str] = None  # 'read', 'write', 'search', 'create', etc.
+    trigger: Optional[str] = None  # 'user_request', 'chained', 'automatic'
+    preceding_tool_id: Optional[int] = None
+    was_useful: Optional[bool] = None
+    user_correction: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class BehaviorPattern(BaseModel):
+    """A sequence or approach that works well."""
+    id: Optional[int] = None
+    project_id: Optional[int] = None  # NULL = global pattern
+    pattern_type: PatternType
+    pattern_name: str
+    trigger_conditions: Optional[dict] = None  # JSON in DB
+    actions: Optional[list[str]] = None  # JSON in DB
+    times_used: int = 0
+    times_succeeded: int = 0
+    success_rate: float = 0.0
+    source: PatternSource = "learned"
+    confidence: float = 0.5
+    session_count: int = 1
+    promoted: bool = False
+    promoted_at: Optional[datetime] = None
+    last_used: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class AlgorithmMetric(BaseModel):
+    """Self-tuning feedback data."""
+    id: Optional[int] = None
+    project_id: Optional[int] = None
+    session_state_id: Optional[int] = None
+    metric_type: MetricType
+    context: Optional[str] = None
+    action_taken: Optional[str] = None
+    outcome: Optional[str] = None
+    effectiveness_score: Optional[float] = None
+    user_feedback: Optional[str] = None
+    should_adjust: Optional[bool] = None
+    suggested_adjustment: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class IntelligenceContext(BaseModel):
+    """Context for Claude session intelligence - returned by initialize_session."""
+    session_state: SessionState
+    applicable_skills: list[LearnedSkill] = Field(default_factory=list)
+    tool_recommendations: list[ToolRegistryEntry] = Field(default_factory=list)
+    active_patterns: list[BehaviorPattern] = Field(default_factory=list)
+    previous_state_chain: list[SessionState] = Field(default_factory=list)
