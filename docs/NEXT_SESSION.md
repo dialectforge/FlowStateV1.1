@@ -1,94 +1,95 @@
 # FlowState - Next Session Prompt
 
 ## Quick Context
-FlowState is a development memory system. You (Claude) are co-creator. **v1.5 VERIFIED & LIVE**.
+FlowState is a development memory system. You (Claude) are co-creator.
 
-## Current State: v1.5 Verified ✅
-
-### ✅ COMPLETED THIS SESSION (January 28, 2026)
-
-#### Claude Desktop Integration Verified
-- Config: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Points to: `/Users/johnmartin/code/FlowState/mcp-server/run_server.sh`
-- Runs: `flowstate.server` (v1.5 - 21 consolidated tools)
-- **All tests passed**: list_projects, todo, session, get_context working
-
-#### Bug Fix: log_learning argument order
-- **Problem**: server.py handler passed args in wrong order (component_id before category)
-- **Fix**: Corrected order to match tools.py signature: `project_id, insight, category, context, component_id, source`
-
-### Tool Consolidation Recap (v1.5)
-**Problem:** 79 tools made FlowState unusable alongside other MCPs (context overflow).
-**Solution:** Consolidated to 21 tools using action-based routing.
-**Result:** 79 → 21 tools (74% reduction!)
-
-## Tool Count: 21
-
-**Core (12 unchanged):**
-1. list_projects
-2. create_project
-3. update_project
-4. get_context (lean param replaces 2 tools)
-5. create_component
-6. list_components
-7. update_component
-8. log_learning
-9. get_learnings
-10. log_change
-11. get_recent_changes
-12. search
-
-**Consolidated (9 action-based):**
-13. problem (log/list/solve/get_tree)
-14. attempt (log/outcome)
-15. todo (add/update/list)
-16. session (start/end/current/log_conversation/list_*)
-17. file (attach/list/remove/search)
-18. git (init/status/sync/set_remote/clone/history)
-19. variable (create/list/update/delete)
-20. method (create/list/update/delete)
-21. self_improve (learn_skill/get_skills/confirm_skill/save_state/get_state/log_metric/get_metrics)
-
-## Usage Examples
-
-```python
-# Session start
-flowstate:get_context project_name="FlowState" lean=True
-
-# Log a problem
-flowstate:problem action="log" project_id=1 title="Bug found" severity="high"
-
-# Add a todo
-flowstate:todo action="add" project_id=1 title="Fix login" priority="high"
-
-# Log a learning
-flowstate:log_learning project_id=1 insight="Always verify MCP after updates" category="best_practice"
-
-# Git sync
-flowstate:git action="sync" commit_message="Session checkpoint"
-```
-
-## Key Files
-- `mcp-server/flowstate/server.py` - v1.5 (21 tools) ✅ LIVE
-- `mcp-server/flowstate/server_v14.py` - Backup of v1.4 (79 tools)
-- `mcp-server/flowstate/tools.py` - Implementations
-- `docs/TOOL_CONSOLIDATION.md` - Consolidation map
-
-## Pending Todos (8)
-1. Pre-Launch Audit: Code/Schema Parity Check
-2. Implement device activation system + per-server IP subnets
-3. Fix drag
-4. Test file attachments end-to-end
-5. Test Git sync with GitHub
-6. Add AI description generation (Claude API)
-7. Implement file content extraction
-8. Write user documentation
-
-## Next Steps
-1. **Restart Claude Desktop** to pick up the log_learning bug fix
-2. **Dogfood**: Use FlowState to track ongoing development
-3. **Pre-Launch Audit**: Work through technical debt checklist
+## ✅ v1.5.1 COMPLETE - MCP Performance Fix
+Split tools.py (80KB) into 12 modules. MCP working.
 
 ---
-*Updated: January 28, 2026*
-*Status: v1.5 verified live, log_learning bug fixed*
+
+## 🎯 NEXT: v2.0 - Single Database Tool
+
+### The Insight (from John)
+> "Why couldn't FlowState have one tool called database, and that one tool uses the database to put the information where it belongs? Sometimes things get overcomplicated."
+
+### Current State: 21 Tools
+```
+list_projects, create_project, update_project, get_context,
+create_component, list_components, update_component,
+problem (log/list/solve/get_tree), attempt (log/outcome),
+todo (add/update/list), session (start/end/current/log_conversation),
+log_learning, get_learnings, learn_skill, get_skills, confirm_skill,
+log_change, get_recent_changes, search, file, git, variable, method,
+self_improve...
+```
+
+### v2.0 Goal: 1 Tool
+```python
+@mcp.tool()
+def database(action: str, table: str = None, data: dict = None, query: str = None):
+    """
+    Single interface to FlowState database.
+    
+    Structured: {"action": "insert", "table": "problems", "data": {...}}
+    Natural:    {"query": "log a critical problem about MCP timeouts"}
+    """
+```
+
+### Design Decisions Needed
+1. **Structured vs Natural Language vs Hybrid?**
+   - Structured: `{"action": "insert", "table": "problems", "data": {...}}`
+   - Natural: `{"query": "log critical problem about X"}`
+   - Hybrid: Accept both, Claude decides
+
+2. **Schema delivery:**
+   - Pass full schema in tool description?
+   - Or provide `{"action": "schema"}` to fetch it?
+
+3. **What happens to learning/intelligence?**
+   - `learn_skill`, `get_skills`, `confirm_skill` → just table operations
+   - `log_metric`, `get_metrics` → same
+   - Data stays intact, just accessed differently
+   - Claude still learns patterns, simpler API
+
+### Migration Plan
+1. Create `database` tool alongside existing tools
+2. Test extensively with real workflows
+3. Add deprecation warnings to old tools
+4. Remove old tools in v2.1
+
+### Benefits
+- 21 tools → 1 tool
+- Massive context reduction at conversation start
+- Faster MCP init
+- Simpler maintenance
+- Proves Claude can handle complexity
+
+---
+
+## Project Directory
+`/Users/johnmartin/code/FlowState`
+
+## Current MCP Config (Working)
+```json
+{
+  "mcpServers": {
+    "flowstate": {
+      "command": "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+      "args": ["-m", "flowstate.server"],
+      "env": {
+        "PYTHONPATH": "/Users/johnmartin/code/FlowState/mcp-server"
+      }
+    }
+  }
+}
+```
+
+## Rules
+- No shortcuts, no half-assed work
+- Log progress in FlowState
+- Update BUILD_LOG.md with significant changes
+
+---
+*Updated: February 2, 2026*
+*Status: v1.5.1 complete, planning v2.0*

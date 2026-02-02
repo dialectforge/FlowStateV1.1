@@ -4,4 +4,4 @@
 
 cd "/Users/johnmartin/code/FlowState/mcp-server"
 export PYTHONPATH="/Users/johnmartin/code/FlowState/mcp-server:$PYTHONPATH"
-exec python3 -m flowstate.server
+exec /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m flowstate.server
