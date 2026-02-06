@@ -544,7 +544,7 @@ class Database:
     def update_todo(self, todo_id: int, **kwargs) -> Optional[Todo]:
         """Update todo fields."""
         allowed = {'title', 'description', 'priority', 'status', 'due_date', 'blocked_by_problem_id'}
-        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
         if not updates:
             conn = self._conn()
             try:
