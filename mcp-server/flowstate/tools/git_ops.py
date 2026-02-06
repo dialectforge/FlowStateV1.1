@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
-from .utils import get_db
+from .utils import get_db, FLOWSTATE_DATA_DIR
 
 def _run_git_command(args: list[str], cwd: Optional[Path] = None) -> tuple[bool, str, str]:
     """Run a git command and return (success, stdout, stderr)."""
@@ -51,7 +51,10 @@ def git_init() -> dict:
 .DS_Store
 Thumbs.db
 
-# Temporary files
+# SQLite temporary/lock files (both .db and .sqlite extensions)
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm

@@ -622,17 +622,17 @@ async def _route_tool(name: str, args: dict) -> Any:
                 args["project_id"],
                 args["title"],
                 args.get("description"),
-                args.get("component_id"),
                 args.get("priority", "medium"),
+                args.get("component_id"),
                 args.get("due_date")
             )
         elif action == "update":
             return tools.update_todo(
                 args["todo_id"],
-                args.get("title"),
-                args.get("description"),
                 args.get("status"),
-                args.get("priority")
+                args.get("priority"),
+                args.get("title"),
+                args.get("description")
             )
         elif action == "list":
             return tools.get_todos(

@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
-from .utils import get_db
+from .utils import get_db, FLOWSTATE_DATA_DIR
 
 def _get_project_bundle_path(project_name: str) -> Path:
     """Get the path to a project's bundle directory."""

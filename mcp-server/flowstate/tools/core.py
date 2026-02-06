@@ -3,6 +3,7 @@
 from typing import Optional, Any
 from datetime import datetime
 from .utils import get_db, _compact_list
+from .files import get_attachments
 
 def list_projects(status: Optional[str] = None) -> list[dict]:
     """

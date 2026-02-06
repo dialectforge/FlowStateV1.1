@@ -1,7 +1,12 @@
 """Utility functions for FlowState tools."""
 
 from typing import Optional
-from ..database import Database
+from ..database import Database, DEFAULT_DB_PATH
+from pathlib import Path
+
+# Data directory is the parent of the database file
+# e.g. ~/Library/Application Support/flowstate/
+FLOWSTATE_DATA_DIR = DEFAULT_DB_PATH.parent
 
 
 # Global database instance (initialized by server)
