@@ -5,7 +5,7 @@ import re
 import os
 
 # Read the original file
-with open('/Users/johnmartin/code/FlowState/mcp-server/flowstate/tools.py', 'r') as f:
+with open(os.path.join(os.path.dirname(__file__), 'tools.py'), 'r') as f:
     content = f.read()
     lines = content.split('\n')
 
@@ -197,7 +197,7 @@ def find_function_bounds(lines, func_name):
     return start, len(lines)
 
 # Create the tools directory
-tools_dir = '/Users/johnmartin/code/FlowState/mcp-server/flowstate/tools'
+tools_dir = os.path.join(os.path.dirname(__file__), 'tools')
 os.makedirs(tools_dir, exist_ok=True)
 
 # Track which functions we've processed

@@ -68,7 +68,7 @@ def database(action: str, table: str = None, data: dict = None, query: str = Non
 ---
 
 ## Project Directory
-`/Users/johnmartin/code/FlowState`
+`/path/to/FlowState`
 
 ## Current MCP Config (Working)
 ```json
@@ -78,7 +78,7 @@ def database(action: str, table: str = None, data: dict = None, query: str = Non
       "command": "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
       "args": ["-m", "flowstate.server"],
       "env": {
-        "PYTHONPATH": "/Users/johnmartin/code/FlowState/mcp-server"
+        "PYTHONPATH": "/path/to/FlowState/mcp-server"
       }
     }
   }

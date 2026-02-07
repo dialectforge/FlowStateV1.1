@@ -402,7 +402,7 @@ const ABOUT_INFO = {
   authors: ['John Martin', 'Claude'],
   license: 'MIT License',
   description: 'FlowState is a development memory system that helps developers maintain context across coding sessions. Track projects, problems, solutions, and learnings with a beautiful visual interface.',
-  repository: 'https://github.com/johnmartin/flowstate',
+  repository: 'https://github.com/dialectforge/FlowState',
   technologies: [
     { name: 'Tauri 2.0', desc: 'Cross-platform desktop framework' },
     { name: 'React 18', desc: 'UI library' },

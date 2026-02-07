@@ -2,7 +2,8 @@
 """Quick test script to verify FlowState is working."""
 
 import sys
-sys.path.insert(0, '/Users/johnmartin/code/Flow state/mcp-server')
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'mcp-server'))
 
 from flowstate.database import Database, init_db
 from pathlib import Path

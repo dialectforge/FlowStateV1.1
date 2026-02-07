@@ -1,5 +1,5 @@
 #!/bin/bash
 # MCP Toggle wrapper script
-# Add to your PATH or create an alias: alias mcp-toggle='/Users/johnmartin/code/FlowState/scripts/mcp-toggle'
+# Add to your PATH or create an alias: alias mcp-toggle='$(dirname "$0")/scripts/mcp-toggle'
 
-python3 /Users/johnmartin/code/FlowState/scripts/mcp-toggle.py "$@"
+python3 $(dirname "$0")/scripts/mcp-toggle.py "$@"

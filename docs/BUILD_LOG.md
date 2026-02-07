@@ -139,7 +139,7 @@ Create a CLI tool to selectively enable/disable MCP servers in Claude Desktop co
 - Manual config editing is error-prone and tedious
 
 ### Solution
-Python script: `/Users/johnmartin/code/FlowState/scripts/mcp-toggle.py`
+Python script: `/path/to/FlowState/scripts/mcp-toggle.py`
 
 ### Features Planned
 - `mcp-toggle list` - Show all MCPs and status (enabled/disabled)
@@ -163,16 +163,16 @@ Python script: `/Users/johnmartin/code/FlowState/scripts/mcp-toggle.py`
 
 ### Usage
 ```bash
-python3 /Users/johnmartin/code/FlowState/scripts/mcp-toggle.py list
-python3 /Users/johnmartin/code/FlowState/scripts/mcp-toggle.py disable xcode
-python3 /Users/johnmartin/code/FlowState/scripts/mcp-toggle.py preset minimal
+python3 /path/to/FlowState/scripts/mcp-toggle.py list
+python3 /path/to/FlowState/scripts/mcp-toggle.py disable xcode
+python3 /path/to/FlowState/scripts/mcp-toggle.py preset minimal
 ```
 
 **Note:** Restart Claude Desktop and start new chat for changes to take effect.
 
 ### File Locations
-- Script: `/Users/johnmartin/code/FlowState/scripts/mcp-toggle.py`
-- Wrapper: `/Users/johnmartin/code/FlowState/scripts/mcp-toggle`
+- Script: `/path/to/FlowState/scripts/mcp-toggle.py`
+- Wrapper: `/path/to/FlowState/scripts/mcp-toggle`
 - Config: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ---
@@ -225,7 +225,7 @@ Split monolithic `tools.py` into `tools/` package with 12 modules:
   "command": "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
   "args": ["-m", "flowstate.server"],
   "env": {
-    "PYTHONPATH": "/Users/johnmartin/code/FlowState/mcp-server"
+    "PYTHONPATH": "/path/to/FlowState/mcp-server"
   }
 }
 ```

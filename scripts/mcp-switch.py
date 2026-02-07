@@ -26,13 +26,13 @@ BACKUP_PATH = Path.home() / "Library/Application Support/Claude/claude_desktop_c
 # All known MCP configurations (add new ones here)
 ALL_MCPS = {
     "flowstate": {
-        "command": "/Users/johnmartin/code/FlowState/mcp-server/run_server.sh",
+        "command": "run_server.sh",  # Update this to your local path
         "args": []
     },
     "github": {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-github"],
-        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": ""}
+        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_TOKEN_HERE"}
     },
     "xcode": {
         "command": "npx",
