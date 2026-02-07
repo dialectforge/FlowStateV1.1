@@ -549,8 +549,8 @@ async def _route_tool(name: str, args: dict) -> Any:
             args["field_name"],
             args.get("old_value"),
             args.get("new_value"),
-            args.get("reason"),
-            args.get("change_type")
+            args.get("change_type"),
+            args.get("reason")
         )
     
     elif name == "get_recent_changes":
@@ -591,8 +591,8 @@ async def _route_tool(name: str, args: dict) -> Any:
         elif action == "solve":
             return tools.mark_problem_solved(
                 args["problem_id"],
-                args["summary"],
                 args.get("winning_attempt_id"),
+                args["summary"],
                 args.get("key_insight"),
                 args.get("code_snippet")
             )
