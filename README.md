@@ -42,8 +42,8 @@ This is the fastest way to get FlowState working with Claude Desktop. No GUI nee
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/dialectforge/FlowState.git
-cd FlowState
+git clone https://github.com/dialectforge/FlowStateV1.1.git
+cd FlowStateV1.1
 ```
 
 ### 2. Install dependencies

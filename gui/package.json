@@ -1,7 +1,7 @@
 {
   "name": "flowstate",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FlowState - Development memory that flows between sessions",
   "author": {
     "name": "John Martin & Claude",
